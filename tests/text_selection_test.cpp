@@ -4,6 +4,12 @@
 #include <QBuffer>
 #include <QAction>
 #include <QClipboard>
+#include <QLabel>
+#include <QDialog>
+#include <QLineEdit>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QToolBar>
 #include <QMenu>
 #include <QSettings>
 #include <QTemporaryDir>
@@ -76,6 +82,127 @@ private slots:
             renderer.render(&painter, QRectF(QPointF(0, 0), QSizeF(physicalSize)));
         }
         QCOMPARE(actual, expected);
+    }
+
+    void search()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath("search.pdf");
+        {
+            QPdfWriter writer(path);
+            writer.setResolution(72);
+            writer.setPageSize(QPageSize(QSizeF(300, 300), QPageSize::Point));
+            writer.setPageMargins(QMarginsF(0, 0, 0, 0));
+            QPainter painter(&writer);
+            painter.setFont(QFont("Helvetica", 16));
+            painter.drawText(QPointF(30, 60), "Alpha alpha beta");
+            QVERIFY(writer.newPage());
+            painter.drawText(QPointF(30, 60), "beta only");
+            QVERIFY(writer.newPage());
+            painter.drawText(QPointF(30, 60), "ALPHA omega");
+        }
+        MainWindow window;
+        window.resize(650, 400);
+        window.show();
+        window.loadFile(path);
+        // Allow the reader's deferred scroll restoration to finish before finding.
+        QTest::qWait(100);
+        auto *field = window.findChild<QLineEdit *>("findText");
+        auto *status = window.findChild<QLabel *>("findStatus");
+        auto *dialog = window.findChild<QDialog *>("findDialog");
+        auto *next = window.findChild<QAction *>("findNext");
+        auto *previous = window.findChild<QAction *>("findPrevious");
+        auto *scroll = window.findChild<QScrollArea *>();
+        QVERIFY(field && status && dialog && next && previous && scroll);
+        QVERIFY(dialog->isHidden());
+        QVERIFY(!next->isEnabled());
+        QAction *find = nullptr;
+        QAction *zoom = nullptr;
+        for (auto *action : window.findChildren<QAction *>()) {
+            if (action->shortcut() == QKeySequence(QKeySequence::Find)) find = action;
+            if (action->shortcut() == QKeySequence(QKeySequence::ZoomIn)) zoom = action;
+        }
+        QVERIFY(find && zoom);
+        const QSize viewportSize = scroll->viewport()->size();
+        const int toolbarCount = window.findChildren<QToolBar *>().size();
+        find->trigger();
+        QVERIFY(dialog->isVisible());
+        QVERIFY(!dialog->isModal());
+        QCOMPARE(scroll->viewport()->size(), viewportSize);
+        QCOMPARE(window.findChildren<QToolBar *>().size(), toolbarCount);
+        const QPoint initialPosition = dialog->pos();
+        window.resize(750, 450);
+        QTRY_VERIFY(dialog->pos() != initialPosition);
+        QTest::qWait(100); // Wait for the existing fit-to-width resize debounce.
+        const QPoint corner = scroll->viewport()->mapToGlobal(
+            QPoint(scroll->viewport()->width(), 0));
+        QVERIFY(qAbs(dialog->frameGeometry().right() - (corner.x() - 13)) <= 4);
+        auto *firstPage = window.findChildren<PageWidget *>().first();
+        const QImage plain = firstPage->grab().toImage();
+        QApplication::clipboard()->setText("Search does not copy");
+        field->setText("alpha");
+        QTRY_COMPARE(status->text(), QStringLiteral("1 of 3"));
+        QVERIFY(next->isEnabled());
+        QVERIFY(previous->isEnabled());
+        QVERIFY(firstPage->grab().toImage() != plain);
+        QTest::keyClick(field, Qt::Key_Return);
+        QCOMPARE(status->text(), QStringLiteral("2 of 3"));
+        QTest::keyClick(field, Qt::Key_Return, Qt::ShiftModifier);
+        QCOMPARE(status->text(), QStringLiteral("1 of 3"));
+        QTest::keySequence(field, QKeySequence(QKeySequence::FindNext));
+        QCOMPARE(status->text(), QStringLiteral("2 of 3"));
+        QTest::keySequence(field, QKeySequence(QKeySequence::FindPrevious));
+        QCOMPARE(status->text(), QStringLiteral("1 of 3"));
+        previous->trigger();
+        QCOMPARE(status->text(), QStringLiteral("3 of 3"));
+        QVERIFY(scroll->verticalScrollBar()->value() > 0);
+        next->trigger();
+        QCOMPARE(status->text(), QStringLiteral("1 of 3"));
+        QCOMPARE(QApplication::clipboard()->text(), "Search does not copy");
+
+        field->setText("not in the document");
+        QTRY_COMPARE(status->text(), QStringLiteral("No matches"));
+        QVERIFY(!next->isEnabled());
+        QVERIFY(!previous->isEnabled());
+        QCOMPARE(firstPage->grab().toImage(), plain);
+        field->clear();
+        QVERIFY(status->text().isEmpty());
+
+        // Query changes discard earlier matches and search every page again.
+        field->setText("beta");
+        QTRY_COMPARE(status->text(), QStringLiteral("1 of 2"));
+        field->setText("alpha");
+        QTRY_COMPARE(status->text(), QStringLiteral("1 of 3"));
+        zoom->trigger();
+        QCOMPARE(status->text(), QStringLiteral("1 of 3"));
+        const QImage zoomedHighlights = firstPage->grab().toImage();
+        if (qEnvironmentVariableIsSet("SLIMPDF_TEST_SCREENSHOT")) {
+            const QString path = qEnvironmentVariable("SLIMPDF_TEST_SCREENSHOT");
+            window.grab().save(path);
+            dialog->grab().save(path + ".find.png");
+        }
+        QTest::keyClick(field, Qt::Key_Escape);
+        QTRY_VERIFY(dialog->isHidden());
+        QVERIFY(!next->isEnabled());
+        QVERIFY(firstPage->grab().toImage() != zoomedHighlights);
+        find->trigger();
+        QTRY_COMPARE(status->text(), QStringLiteral("1 of 3"));
+
+        // Loading another PDF reruns the retained query against the new snapshot.
+        const QString other = directory.filePath("other.pdf");
+        {
+            QPdfWriter writer(other);
+            QPainter painter(&writer);
+            painter.drawText(QPointF(100, 100), "alpha alpha alpha alpha");
+        }
+        window.loadFile(other);
+        QTRY_COMPARE(status->text(), QStringLiteral("1 of 4"));
+        QVERIFY(next->isEnabled());
+        QCOMPARE(QApplication::clipboard()->text(), "Search does not copy");
+        dialog->close();
+        QVERIFY(dialog->isHidden());
+        QVERIFY(!next->isEnabled());
     }
 
     void copyCommand()

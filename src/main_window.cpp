@@ -17,6 +17,15 @@
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QKeySequence>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPdfSearchModel>
+#include <QDialog>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QScreen>
+#include <QMoveEvent>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
@@ -35,6 +44,28 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+
+// Some Qt versions return one rectangle per glyph rather than per text line.
+static QList<QRectF> searchHighlightBounds(const QPdfLink &match)
+{
+    QList<QRectF> lines;
+    for (const QRectF &bounds : match.rectangles()) {
+        if (bounds.isEmpty()) continue;
+        if (!lines.isEmpty()) {
+            QRectF &line = lines.last();
+            const double overlap = qMin(line.bottom(), bounds.bottom())
+                                 - qMax(line.top(), bounds.top());
+            const double gap = qMax(line.left(), bounds.left())
+                             - qMin(line.right(), bounds.right());
+            if (overlap > 0 && gap <= qMax(line.height(), bounds.height()) * 2) {
+                line = line.united(bounds);
+                continue;
+            }
+        }
+        lines.append(bounds);
+    }
+    return lines;
+}
 
 // ── PageWidget ────────────────────────────────────────────────────────────────
 
@@ -96,6 +127,13 @@ void PageWidget::clearSelection()
     update();
 }
 
+void PageWidget::setSearchHighlights(const QList<QRectF> &matches, const QList<QRectF> &current)
+{
+    m_searchBounds = matches;
+    m_currentSearchBounds = current;
+    update();
+}
+
 void PageWidget::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
@@ -105,6 +143,12 @@ void PageWidget::paintEvent(QPaintEvent *)
     // PDF text boundaries are in points; scale them to the actual rendered size.
     p.scale(width() / m_pageSize.width(), height() / m_pageSize.height());
     p.setPen(Qt::NoPen);
+    p.setBrush(QColor(255, 220, 0, 100));
+    for (const QRectF &bounds : m_searchBounds)
+        p.drawRect(bounds);
+    p.setBrush(QColor(255, 140, 0, 160));
+    for (const QRectF &bounds : m_currentSearchBounds)
+        p.drawRect(bounds);
     p.setBrush(QColor(70, 130, 230, 110));
     for (const QPolygonF &bounds : m_selBounds)
         p.drawPolygon(bounds);
@@ -254,6 +298,21 @@ void MainWindow::initUi()
     m_copyAct->setEnabled(false);
     connect(m_copyAct, &QAction::triggered, this, &MainWindow::copySelection);
 
+    em->addSeparator();
+    auto *findAct = em->addAction(tr("&Find…"));
+    findAct->setShortcut(QKeySequence::Find);
+    connect(findAct, &QAction::triggered, this, &MainWindow::showFind);
+    m_findNextAct = em->addAction(tr("Find &Next"));
+    m_findNextAct->setObjectName("findNext");
+    m_findNextAct->setShortcuts(QKeySequence::keyBindings(QKeySequence::FindNext));
+    m_findNextAct->setEnabled(false);
+    connect(m_findNextAct, &QAction::triggered, this, [this] { navigateSearch(1); });
+    m_findPreviousAct = em->addAction(tr("Find &Previous"));
+    m_findPreviousAct->setObjectName("findPrevious");
+    m_findPreviousAct->setShortcuts(QKeySequence::keyBindings(QKeySequence::FindPrevious));
+    m_findPreviousAct->setEnabled(false);
+    connect(m_findPreviousAct, &QAction::triggered, this, [this] { navigateSearch(-1); });
+
     // View menu
     auto *vm = menuBar()->addMenu(tr("&View"));
     vm->addAction(zoomInAct);
@@ -297,6 +356,212 @@ void MainWindow::initUi()
     tb->addAction(m_fitWAct);
     tb->addAction(m_fitHAct);
     tb->addAction(m_fitPAct);
+
+    m_findDialog = new QDialog(this, Qt::Tool);
+    m_findDialog->setObjectName("findDialog");
+    m_findDialog->setWindowTitle(tr("Find"));
+    m_findDialog->setModal(false);
+    m_findDialog->setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+    auto *findLayout = new QVBoxLayout(m_findDialog);
+    findLayout->setSizeConstraint(QLayout::SetFixedSize);
+    m_findEdit = new QLineEdit(m_findDialog);
+    m_findEdit->setObjectName("findText");
+    m_findEdit->setAccessibleName(tr("Find text in document"));
+    m_findEdit->setPlaceholderText(tr("Search this document"));
+    m_findEdit->setClearButtonEnabled(true);
+    m_findEdit->setMinimumWidth(300);
+    m_findEdit->installEventFilter(this);
+    findLayout->addWidget(m_findEdit);
+    auto *navigation = new QHBoxLayout;
+    m_findStatus = new QLabel(m_findDialog);
+    m_findStatus->setObjectName("findStatus");
+    m_findStatus->setMinimumWidth(90);
+    navigation->addWidget(m_findStatus, 1);
+    for (const auto &entry : {qMakePair(m_findPreviousAct, tr("Previous")),
+                              qMakePair(m_findNextAct, tr("Next"))}) {
+        auto *button = new QPushButton(entry.second, m_findDialog);
+        button->setAutoDefault(false);
+        QAction *action = entry.first;
+        button->setEnabled(action->isEnabled());
+        connect(button, &QPushButton::clicked, action, &QAction::trigger);
+        connect(action, &QAction::changed, button,
+                [action, button] { button->setEnabled(action->isEnabled()); });
+        navigation->addWidget(button);
+    }
+    findLayout->addLayout(navigation);
+    m_closeFindAct = new QAction(tr("Close Find"), this);
+    m_closeFindAct->setShortcut(QKeySequence(Qt::Key_Escape));
+    m_closeFindAct->setEnabled(false);
+    addAction(m_closeFindAct);
+    // Keep document shortcuts available while the modeless dialog has focus.
+    m_findDialog->addActions({findAct, m_findPreviousAct, m_findNextAct, m_closeFindAct});
+    connect(m_closeFindAct, &QAction::triggered, this, &MainWindow::closeFind);
+    connect(m_findDialog, &QDialog::rejected, this, &MainWindow::closeFind);
+    connect(m_findEdit, &QLineEdit::textChanged, this, &MainWindow::startSearch);
+    m_searchTimer = new QTimer(this);
+    m_searchTimer->setInterval(0);
+    connect(m_searchTimer, &QTimer::timeout, this, &MainWindow::searchNextPage);
+    m_findDialog->hide();
+}
+
+// ── Find ──────────────────────────────────────────────────────────────────────
+
+bool MainWindow::eventFilter(QObject *object, QEvent *event)
+{
+    if (object == m_findEdit && event->type() == QEvent::KeyPress) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+            navigateSearch(key->modifiers() & Qt::ShiftModifier ? -1 : 1);
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(object, event);
+}
+
+void MainWindow::showFind()
+{
+    const bool wasHidden = m_findDialog->isHidden();
+    m_findDialog->show();
+    positionFindDialog();
+    m_findDialog->raise();
+    m_findDialog->activateWindow();
+    m_closeFindAct->setEnabled(true);
+    m_findEdit->setFocus();
+    m_findEdit->selectAll();
+    if (wasHidden)
+        startSearch();
+}
+
+void MainWindow::positionFindDialog()
+{
+    if (!m_findDialog || m_findDialog->isHidden()) return;
+    const QPoint corner = m_scroll->viewport()->mapToGlobal(
+        QPoint(m_scroll->viewport()->width(), 0));
+    const QSize size = m_findDialog->frameGeometry().size();
+    QPoint position(corner.x() - size.width() - 12, corner.y() + 12);
+    QScreen *targetScreen = QGuiApplication::screenAt(corner);
+    if (!targetScreen) targetScreen = screen();
+    if (targetScreen) {
+        const QRect available = targetScreen->availableGeometry();
+        position.setX(qBound(available.left(), position.x(),
+            qMax(available.left(), available.right() - size.width() + 1)));
+        position.setY(qBound(available.top(), position.y(),
+            qMax(available.top(), available.bottom() - size.height() + 1)));
+    }
+    m_findDialog->move(position);
+}
+
+void MainWindow::closeFind()
+{
+    m_findDialog->hide();
+    m_closeFindAct->setEnabled(false);
+    clearSearch();
+    activateWindow();
+    m_scroll->setFocus();
+}
+
+void MainWindow::clearSearch()
+{
+    m_searchTimer->stop();
+    m_searchModel.reset();
+    m_searchResults.clear();
+    m_searchBoundsByPage.clear();
+    m_currentMatch = -1;
+    m_nextSearchPage = 0;
+    updateSearchHighlights();
+    updateFindStatus();
+}
+
+void MainWindow::startSearch()
+{
+    clearSearch();
+    if (!m_document || m_findDialog->isHidden() || m_findEdit->text().isEmpty())
+        return;
+    m_searchBoundsByPage.resize(m_document->pageCount());
+    m_searchModel = std::make_unique<QPdfSearchModel>();
+    m_searchModel->setDocument(m_document.get());
+    m_searchModel->setSearchString(m_findEdit->text());
+    m_searchTimer->start();
+    updateFindStatus();
+}
+
+void MainWindow::searchNextPage()
+{
+    if (!m_searchModel || m_nextSearchPage >= m_document->pageCount()) {
+        m_searchTimer->stop();
+        m_searchModel.reset();
+        updateFindStatus();
+        return;
+    }
+
+    const int page = m_nextSearchPage++;
+    const auto matches = m_searchModel->resultsOnPage(page);
+    for (const QPdfLink &match : matches) {
+        m_searchResults.append(match);
+        m_searchBoundsByPage[page].append(searchHighlightBounds(match));
+    }
+    const bool firstMatch = m_currentMatch < 0 && !m_searchResults.isEmpty();
+    if (firstMatch)
+        m_currentMatch = 0;
+    if (auto *widget = qobject_cast<PageWidget *>(m_pagesLayout->itemAt(page)->widget())) {
+        const bool active = m_currentMatch >= 0 && m_searchResults[m_currentMatch].page() == page;
+        widget->setSearchHighlights(m_searchBoundsByPage[page],
+            active ? searchHighlightBounds(m_searchResults[m_currentMatch]) : QList<QRectF>{});
+    }
+    if (firstMatch)
+        scrollToCurrentMatch();
+    if (m_nextSearchPage >= m_document->pageCount()) {
+        m_searchTimer->stop();
+        m_searchModel.reset();
+    }
+    updateFindStatus();
+}
+
+void MainWindow::updateFindStatus()
+{
+    const int count = m_searchResults.size();
+    m_findNextAct->setEnabled(count > 0);
+    m_findPreviousAct->setEnabled(count > 0);
+    if (m_findDialog->isHidden() || m_findEdit->text().isEmpty())
+        m_findStatus->clear();
+    else if (count == 0)
+        m_findStatus->setText(m_searchTimer->isActive() ? tr("Searching…") : tr("No matches"));
+    else
+        m_findStatus->setText(tr("%1 of %2%3").arg(m_currentMatch + 1).arg(count)
+            .arg(m_searchTimer->isActive() ? QStringLiteral("…") : QString()));
+}
+
+void MainWindow::updateSearchHighlights()
+{
+    const QPdfLink current = m_currentMatch >= 0 ? m_searchResults[m_currentMatch] : QPdfLink();
+    for (int page = 0; page < m_pagesLayout->count(); ++page) {
+        auto *widget = qobject_cast<PageWidget *>(m_pagesLayout->itemAt(page)->widget());
+        if (widget)
+            widget->setSearchHighlights(m_searchBoundsByPage.value(page),
+                current.isValid() && current.page() == page ? searchHighlightBounds(current) : QList<QRectF>{});
+    }
+}
+
+void MainWindow::navigateSearch(int direction)
+{
+    if (m_searchResults.isEmpty()) return;
+    const int count = m_searchResults.size();
+    m_currentMatch = (m_currentMatch + direction + count) % count;
+    updateSearchHighlights();
+    updateFindStatus();
+    scrollToCurrentMatch();
+}
+
+void MainWindow::scrollToCurrentMatch()
+{
+    if (m_currentMatch < 0) return;
+    const QPdfLink &match = m_searchResults[m_currentMatch];
+    auto *widget = m_pagesLayout->itemAt(match.page())->widget();
+    const QSizeF size = m_document->pagePointSize(match.page());
+    const QPointF point = match.rectangles().isEmpty() ? match.location()
+                                                    : match.rectangles().first().center();
+    m_scroll->ensureVisible(widget->x() + qRound(point.x() * widget->width() / size.width()),
+                           widget->y() + qRound(point.y() * widget->height() / size.height()), 40, 40);
 }
 
 // ── File loading ──────────────────────────────────────────────────────────────
@@ -355,6 +620,7 @@ void MainWindow::render(int scrollTo)
         m_pageImages.append(doc.render(i, sz));
     }
 
+    clearSearch();
     // Keep the old snapshot alive until rebuildPageLabels deletes its widgets.
     m_document.swap(document);
     m_pdfBuffer.swap(buffer);
@@ -369,6 +635,8 @@ void MainWindow::render(int scrollTo)
     QTimer::singleShot(50, this, [this, scrollTo] {
         m_scroll->verticalScrollBar()->setValue(scrollTo);
         updatePageIndicator();
+        if (m_findDialog->isVisible())
+            startSearch();
     });
 }
 
@@ -620,9 +888,16 @@ void MainWindow::copySelection()
 
 // ── Resize ────────────────────────────────────────────────────────────────────
 
+void MainWindow::moveEvent(QMoveEvent *event)
+{
+    QMainWindow::moveEvent(event);
+    QTimer::singleShot(0, this, &MainWindow::positionFindDialog);
+}
+
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
+    QTimer::singleShot(0, this, &MainWindow::positionFindDialog);
     if (m_fitMode != FitMode::None && !m_pageImages.isEmpty())
         m_resizeTimer->start(80);
     else

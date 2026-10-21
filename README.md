@@ -7,13 +7,14 @@ SlimPDF is a small desktop PDF reader built with C++17 and Qt 6. It combines con
 - **Continuous reading.** Scroll through all pages in one window, with the page number and zoom level in the status bar.
 - **Page-aware status.** When at least 90% of a page is visible, the status bar shows that page alone, such as `Page 3 of 10`. Otherwise, it shows the visible range, such as `Pages 3–4 of 10`. If only one page is visible, it shows a single page number.
 - **Live text selection.** The pointer becomes an I-beam over selectable text. Click and drag in either direction to highlight text across lines within a page. Highlights follow the text as you drag, and stay visible when you release the mouse. Use **Edit → Copy** or the copy shortcut to copy the selected text.
+- **Find in document.** Search text across all pages with **Edit → Find…**. Matching text is highlighted, the current result has a distinct color, and a compact, modeless Find dialog at the upper right shows your position in the results without reducing the reading area. Use Enter/Shift+Enter or Find Next/Previous to navigate; navigation wraps at either end. Escape closes Find and clears its highlights. Searches are case-insensitive and refresh when the PDF reloads.
 - **Zoom and fit controls.** Fit Width is active by default. Zoom from 25% to 400%, reset to 100%, or fit the document to the window's width, height, or full page. The active fit button stays highlighted and the fit is recalculated when you resize the window. Manual zoom turns off the fit mode.
 - **Automatic reloads.** Changes to the open PDF trigger a reload after a short delay, preserving the vertical scroll position.
 - **Files stay available.** SlimPDF reads the PDF into memory and closes the source file before rendering. You can rename, move, or replace the file while its current contents remain visible. Automatic reloads watch the original path; reopen the PDF if you move or rename it.
 - **Recent files.** Recently opened files persist across sessions under **File → Open Recent**, with an option to clear the list. On macOS, the list follows the system's recent-document limit, including zero, and is also available from the Dock icon's **Open Recent** menu. Linux and Windows retain up to ten files.
 - **Flexible opening.** Open a PDF from the File menu, drop it onto the window, or pass its path on the command line.
 
-Text selection uses the PDF's existing text layer. Image-only scans need a text layer before their text can be selected.
+Text selection and search use the PDF's existing text layer. Image-only scans need a text layer before their text can be selected or searched.
 
 ## Using SlimPDF
 
@@ -34,6 +35,10 @@ Choose **Help → About SlimPDF…** to see the version and repository link. On 
 | Zoom with the mouse wheel | ⌘ + scroll | Ctrl + scroll |
 | Select text | Drag over text, then release | Drag over text, then release |
 | Copy selected text | ⌘C | Ctrl+C |
+| Find text | ⌘F | Ctrl+F |
+| Next match | ⌘G or Enter in Find | F3 or Enter in Find |
+| Previous match | ⇧⌘G or Shift+Enter in Find | Shift+F3 or Shift+Enter in Find |
+| Close Find | Escape | Escape |
 
 ### Launch from the command line
 
@@ -123,7 +128,7 @@ After building, run:
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The Qt Test suite renders widgets into images. It runs offscreen on macOS and Linux and uses the native Windows platform for access to installed fonts. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, and clearing selections at three zoom levels. It also checks that selection leaves the clipboard unchanged and that the Copy command copies only the current selection.
+The Qt Test suite renders widgets into images. It runs offscreen on macOS and Linux and uses the native Windows platform for access to installed fonts. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, and clearing selections at three zoom levels. It also checks that selection leaves the clipboard unchanged, that the Copy command copies only the current selection, and that Find supports page-spanning results, navigation, query changes, highlights, zoom, closing, and document replacement.
 
 ## Source layout
 
@@ -133,7 +138,7 @@ The Qt Test suite renders widgets into images. It runs offscreen on macOS and Li
 | `src/main_window.h`, `src/main_window.cpp` | Reader window, page rendering, selection, zoom, file watching, and recent files |
 | `src/macos_dock.h`, `src/macos_dock.mm` | macOS Dock recent-file menu |
 | `icons/` | SVG toolbar icons embedded in the application |
-| `tests/text_selection_test.cpp` | Text selection regression tests |
+| `tests/text_selection_test.cpp` | Text selection, Copy, and Find regression tests |
 | `CMakeLists.txt` | Application and test build configuration |
 | `cmake/Packaging.cmake` | Native installer configuration and Qt deployment |
 | `packaging/linux/slimpdf.desktop` | Linux application menu entry and PDF MIME type |

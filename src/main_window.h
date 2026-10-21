@@ -4,6 +4,7 @@
 #include <QList>
 #include <QMainWindow>
 #include <QPixmap>
+#include <QPdfLink>
 #include <QPolygonF>
 #include <QVector>
 #include <QWidget>
@@ -11,6 +12,10 @@
 #include <memory>
 
 class QBuffer;
+class QLineEdit;
+class QLabel;
+class QPdfSearchModel;
+class QDialog;
 class QPdfDocument;
 class QFileSystemWatcher;
 class QMenu;
@@ -24,6 +29,7 @@ public:
     explicit PageWidget(QPdfDocument *document, int pageIndex, QWidget *parent = nullptr);
     void setPixmap(const QPixmap &px);
     void clearSelection();
+    void setSearchHighlights(const QList<QRectF> &matches, const QList<QRectF> &current);
 
 signals:
     void selectionStarted();
@@ -47,6 +53,8 @@ private:
     QSizeF           m_pageSize;
     QList<QPolygonF> m_textBounds;
     QList<QPolygonF> m_selBounds;
+    QList<QRectF>    m_searchBounds;
+    QList<QRectF>    m_currentSearchBounds;
     QString          m_selectedText;
     bool             m_selecting = false;
 };
@@ -66,6 +74,7 @@ public:
     void loadFile(const QString &path);
 
 protected:
+    bool eventFilter(QObject *object, QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
@@ -81,6 +90,10 @@ private slots:
     void updatePageIndicator();
     void onSelectionChanged(const QString &text);
     void copySelection();
+    void showFind();
+    void closeFind();
+    void startSearch();
+    void searchNextPage();
 
 private:
     enum class FitMode { None, Width, Height, Page };
@@ -98,9 +111,16 @@ private:
     void updateStatus();
     void startWatcher();
     void stopWatcher();
+    void clearSearch();
+    void updateFindStatus();
+    void updateSearchHighlights();
+    void navigateSearch(int direction);
+    void scrollToCurrentMatch();
+    void positionFindDialog();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
 
     QScrollArea        *m_scroll      = nullptr;
     QWidget            *m_pagesWidget = nullptr;
@@ -114,12 +134,25 @@ protected:
     QAction            *m_fitHAct     = nullptr;
     QAction            *m_fitPAct     = nullptr;
 
+    QDialog *m_findDialog = nullptr;
+    QLineEdit *m_findEdit = nullptr;
+    QLabel *m_findStatus = nullptr;
+    QAction *m_findNextAct = nullptr;
+    QAction *m_findPreviousAct = nullptr;
+    QAction *m_closeFindAct = nullptr;
+    QTimer *m_searchTimer = nullptr;
+    QVector<QPdfLink> m_searchResults;
+    QVector<QList<QRectF>> m_searchBoundsByPage;
+    int m_currentMatch = -1;
+    int m_nextSearchPage = 0;
+
     QString         m_selectedText;
     QString         m_currentFile;
     QStringList     m_recentFiles;
     // Destroy the document before the in-memory device it reads from.
     std::unique_ptr<QBuffer> m_pdfBuffer;
     std::unique_ptr<QPdfDocument> m_document;
+    std::unique_ptr<QPdfSearchModel> m_searchModel;
     QVector<QImage> m_pageImages;
     double          m_zoom         = 1.0;
     int             m_firstVisible = 0;
