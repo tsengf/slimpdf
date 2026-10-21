@@ -26,7 +26,6 @@
 #include <QPdfSelection>
 #include <QResizeEvent>
 #include <QSettings>
-#include <QSvgRenderer>
 #include <QPixmap>
 #include <QScrollArea>
 #include <QToolBar>
@@ -36,21 +35,6 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
-
-static QIcon svgIcon(const QString &path, int size = 22)
-{
-    QIcon icon;
-    for (int dpr : {1, 2}) {
-        QPixmap pix(size * dpr, size * dpr);
-        pix.setDevicePixelRatio(dpr);
-        pix.fill(Qt::transparent);
-        QPainter painter(&pix);
-        QSvgRenderer renderer(path);
-        renderer.render(&painter);
-        icon.addPixmap(pix);
-    }
-    return icon;
-}
 
 // ── PageWidget ────────────────────────────────────────────────────────────────
 
@@ -204,12 +188,12 @@ void MainWindow::initUi()
             this, &MainWindow::updatePageIndicator);
 
     // Actions
-    auto *zoomInAct  = new QAction(svgIcon(":/icons/zoom-in.svg"),    tr("Zoom In"),    this);
-    auto *zoomOutAct = new QAction(svgIcon(":/icons/zoom-out.svg"),   tr("Zoom Out"),   this);
-    auto *zoomRstAct = new QAction(svgIcon(":/icons/zoom-reset.svg"), tr("Actual Size"), this);
-    m_fitWAct = new QAction(svgIcon(":/icons/fit-width.svg"),  tr("Fit Width"),  this);
-    m_fitHAct = new QAction(svgIcon(":/icons/fit-height.svg"), tr("Fit Height"), this);
-    m_fitPAct = new QAction(svgIcon(":/icons/fit-page.svg"),   tr("Fit Page"),   this);
+    auto *zoomInAct  = new QAction(QIcon(":/icons/zoom-in.svg"),    tr("Zoom In"),    this);
+    auto *zoomOutAct = new QAction(QIcon(":/icons/zoom-out.svg"),   tr("Zoom Out"),   this);
+    auto *zoomRstAct = new QAction(QIcon(":/icons/zoom-reset.svg"), tr("Actual Size"), this);
+    m_fitWAct = new QAction(QIcon(":/icons/fit-width.svg"),  tr("Fit Width"),  this);
+    m_fitHAct = new QAction(QIcon(":/icons/fit-height.svg"), tr("Fit Height"), this);
+    m_fitPAct = new QAction(QIcon(":/icons/fit-page.svg"),   tr("Fit Page"),   this);
 
     zoomInAct->setShortcut(QKeySequence::ZoomIn);
     zoomOutAct->setShortcut(QKeySequence::ZoomOut);

@@ -29,9 +29,7 @@ qt_add_executable(slimpdf WIN32 MACOSX_BUNDLE ${SOURCES})
 target_include_directories(slimpdf PRIVATE src)
 target_compile_definitions(slimpdf PRIVATE SLIMPDF_VERSION="${PROJECT_VERSION}")
 
-qt_add_resources(slimpdf "icons"
-    PREFIX "/"
-    FILES
+set(SLIMPDF_ICON_FILES
         icons/zoom-in.svg
         icons/zoom-out.svg
         icons/zoom-reset.svg
@@ -39,6 +37,7 @@ qt_add_resources(slimpdf "icons"
         icons/fit-height.svg
         icons/fit-page.svg
 )
+qt_add_resources(slimpdf "icons" PREFIX "/" FILES ${SLIMPDF_ICON_FILES})
 
 target_link_libraries(slimpdf PRIVATE
     Qt6::Core
@@ -83,6 +82,7 @@ if(BUILD_TESTING)
     set(TEST_SOURCES ${SOURCES})
     list(REMOVE_ITEM TEST_SOURCES src/main.cpp)
     qt_add_executable(text_selection_test tests/text_selection_test.cpp ${TEST_SOURCES})
+    qt_add_resources(text_selection_test "test_icons" PREFIX "/" FILES ${SLIMPDF_ICON_FILES})
     target_include_directories(text_selection_test PRIVATE src)
     target_link_libraries(text_selection_test PRIVATE
         Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Pdf Qt6::Svg Qt6::Test)

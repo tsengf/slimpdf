@@ -12,6 +12,7 @@
 #include <QPdfDocument>
 #include <QPdfSelection>
 #include <QPdfWriter>
+#include <QSvgRenderer>
 #include <QtTest>
 
 class TextSelectionTest : public QObject {
@@ -26,6 +27,55 @@ private slots:
         QCoreApplication::setApplicationName("TextSelectionTests");
         QSettings::setDefaultFormat(QSettings::IniFormat);
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDir.path());
+    }
+
+    void toolbarIcons_data()
+    {
+        QTest::addColumn<QString>("label");
+        QTest::addColumn<QString>("path");
+        QTest::addColumn<int>("dpr");
+        const QList<QPair<QString, QString>> icons = {
+            {"Zoom In", "zoom-in"}, {"Zoom Out", "zoom-out"},
+            {"Actual Size", "zoom-reset"}, {"Fit Width", "fit-width"},
+            {"Fit Height", "fit-height"}, {"Fit Page", "fit-page"}
+        };
+        for (const auto &icon : icons) {
+            for (int dpr : {1, 2, 3}) {
+                const QByteArray name = (icon.second + QString::number(dpr)).toUtf8();
+                QTest::newRow(name.constData()) << icon.first
+                    << QString(":/icons/%1.svg").arg(icon.second) << dpr;
+            }
+        }
+    }
+
+    void toolbarIcons()
+    {
+        QFETCH(QString, label);
+        QFETCH(QString, path);
+        QFETCH(int, dpr);
+        MainWindow window;
+        QAction *action = nullptr;
+        for (auto *candidate : window.findChildren<QAction *>()) {
+            if (candidate->text() == label) action = candidate;
+        }
+        QVERIFY(action);
+        QVERIFY(!action->icon().isNull());
+        const QSize physicalSize(22 * dpr, 22 * dpr);
+        QImage actual = action->icon().pixmap(QSize(22, 22), qreal(dpr)).toImage();
+        QCOMPARE(actual.size(), physicalSize);
+        actual.setDevicePixelRatio(1.0);
+
+        // Render independently in physical pixels to catch clipping from applying
+        // the screen scale twice to the SVG viewport.
+        QImage expected(physicalSize, QImage::Format_ARGB32_Premultiplied);
+        expected.fill(Qt::transparent);
+        QSvgRenderer renderer(path);
+        QVERIFY(renderer.isValid());
+        {
+            QPainter painter(&expected);
+            renderer.render(&painter, QRectF(QPointF(0, 0), QSizeF(physicalSize)));
+        }
+        QCOMPARE(actual, expected);
     }
 
     void copyCommand()
