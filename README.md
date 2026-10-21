@@ -9,7 +9,7 @@ A lightweight, cross-platform PDF reader built with C++ and Qt6.
 - **Zoom controls** — zoom in/out and 1:1 reset via toolbar icons
 - **Fit modes** — fit to width, height, or full page; the active mode is highlighted in the toolbar and reapplied on window resize
 - **Multi-page scrolling** — all pages are rendered in a single continuous scroll view
-- **Page indicator** — status bar shows "Page X of N"; spanning two pages shows "Pages X–Y of N"
+- **Page indicator** — status bar shows "Page X of N" when at least 90% of that page is visible; otherwise it shows the visible range as "Pages X–Y of N" (or a single page when only one is visible)
 - **Text selection** — the cursor changes to an I-beam over selectable text; drag in either direction to highlight text continuously across lines, and release to copy it to the clipboard
 - **Recent files** — persisted across sessions; accessible from the macOS Dock icon right-click menu under **Open Recent**
 - **Drag-and-drop** — drop a PDF onto the window to open it

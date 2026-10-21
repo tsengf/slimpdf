@@ -199,6 +199,8 @@ void MainWindow::initUi()
 
     connect(m_scroll->verticalScrollBar(), &QScrollBar::valueChanged,
             this, &MainWindow::updatePageIndicator);
+    connect(m_scroll->horizontalScrollBar(), &QScrollBar::valueChanged,
+            this, &MainWindow::updatePageIndicator);
 
     // Actions
     auto *zoomInAct  = new QAction(svgIcon(":/icons/zoom-in.svg"),    tr("Zoom In"),    this);
@@ -397,6 +399,7 @@ void MainWindow::applyZoom()
                 Qt::SmoothTransformation);
         pw->setPixmap(pix);
     }
+    QTimer::singleShot(0, this, &MainWindow::updatePageIndicator);
 }
 
 // ── Zoom ──────────────────────────────────────────────────────────────────────
@@ -429,18 +432,30 @@ void MainWindow::updatePageIndicator()
     const int count = m_pagesLayout->count();
     if (count == 0) return;
 
-    const int scrollY = m_scroll->verticalScrollBar()->value();
-    const int viewH   = m_scroll->viewport()->height();
+    const QRect viewport(m_scroll->horizontalScrollBar()->value(),
+                         m_scroll->verticalScrollBar()->value(),
+                         m_scroll->viewport()->width(), m_scroll->viewport()->height());
 
-    int first = -1, last = -1;
+    int first = -1, last = -1, dominantPage = -1;
+    double largestVisibleFraction = 0.0;
     for (int i = 0; i < count; ++i) {
         auto *w = m_pagesLayout->itemAt(i)->widget();
-        if (!w) continue;
-        if (w->y() + w->height() > scrollY && w->y() < scrollY + viewH) {
-            if (first < 0) first = i;
-            last = i;
+        if (!w || w->width() <= 0 || w->height() <= 0) continue;
+        const QRect visible = w->geometry().intersected(viewport);
+        if (visible.isEmpty()) continue;
+
+        if (first < 0) first = i;
+        last = i;
+        const double visibleFraction = (double(visible.width()) * visible.height())
+                                     / (double(w->width()) * w->height());
+        if (visibleFraction >= 0.9 && visibleFraction > largestVisibleFraction) {
+            dominantPage = i;
+            largestVisibleFraction = visibleFraction;
         }
     }
+
+    if (dominantPage >= 0)
+        first = last = dominantPage;
 
     if (first < 0 || (first == m_firstVisible && last == m_lastVisible))
         return;
@@ -579,6 +594,8 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     QMainWindow::resizeEvent(event);
     if (m_fitMode != FitMode::None && !m_pageImages.isEmpty())
         m_resizeTimer->start(80);
+    else
+        QTimer::singleShot(0, this, &MainWindow::updatePageIndicator);
 }
 
 // ── File watching ─────────────────────────────────────────────────────────────
