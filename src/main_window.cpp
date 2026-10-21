@@ -18,6 +18,7 @@
 #include <QFileSystemWatcher>
 #include <QKeySequence>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
@@ -278,6 +279,21 @@ void MainWindow::initUi()
     vm->addAction(m_fitWAct);
     vm->addAction(m_fitHAct);
     vm->addAction(m_fitPAct);
+
+    // Qt places AboutRole in the application menu on macOS.
+    auto *helpMenu = menuBar()->addMenu(tr("&Help"));
+    auto *aboutAct = new QAction(tr("&About SlimPDF…"), this);
+    aboutAct->setMenuRole(QAction::AboutRole);
+    helpMenu->addAction(aboutAct);
+    connect(aboutAct, &QAction::triggered, this, [this] {
+        QMessageBox::about(this, tr("About SlimPDF"),
+            tr("<h3>SlimPDF %1</h3>"
+               "<p>A lightweight PDF reader with continuous scrolling, "
+               "text selection, and automatic reloads.</p>"
+               "<p><a href=\"https://github.com/tsengf/slimpdf\">Project on GitHub</a></p>"
+               "<p>MIT License</p>")
+                .arg(QCoreApplication::applicationVersion().toHtmlEscaped()));
+    });
 
     // Toolbar
     auto *tb = addToolBar(tr("Controls"));

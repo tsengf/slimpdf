@@ -21,6 +21,8 @@ Launching SlimPDF without a file opens an empty reader window. Choose **File →
 
 Use the toolbar or **View** menu for zoom and fit controls. Click an active fit button again to turn off automatic fitting while keeping the current zoom.
 
+Choose **Help → About SlimPDF…** to see the version and repository link. On macOS, **About SlimPDF…** appears in the application menu.
+
 ### Keyboard and mouse controls
 
 | Action | macOS | Linux / Windows |

@@ -25,6 +25,7 @@ endif()
 qt_add_executable(slimpdf WIN32 MACOSX_BUNDLE ${SOURCES})
 
 target_include_directories(slimpdf PRIVATE src)
+target_compile_definitions(slimpdf PRIVATE SLIMPDF_VERSION="${PROJECT_VERSION}")
 
 qt_add_resources(slimpdf "icons"
     PREFIX "/"

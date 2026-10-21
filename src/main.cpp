@@ -5,6 +5,7 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     app.setApplicationName("SlimPDF");
+    app.setApplicationVersion(QStringLiteral(SLIMPDF_VERSION));
     app.setOrganizationName("slimpdf");
 
     MainWindow w;
