@@ -91,6 +91,11 @@ jobs:
           if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
           $app = Join-Path $destination 'bin/slimpdf.exe'
           if (!(Test-Path $app)) { throw 'Installed executable is missing' }
+          foreach ($runtime in 'msvcp140.dll', 'vcruntime140.dll') {
+            if (!(Test-Path (Join-Path $destination "bin/$runtime"))) {
+              throw "App-local MSVC runtime is missing: $runtime"
+            }
+          }
           $env:QT_PLUGIN_PATH = ''
           $process = Start-Process $app -PassThru -WindowStyle Hidden
           Start-Sleep -Seconds 3

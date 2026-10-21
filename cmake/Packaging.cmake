@@ -7,6 +7,15 @@ if(APPLE OR WIN32)
         # Older macdeployqt versions do not sign bundles unless asked explicitly.
         qt_generate_deploy_app_script(TARGET slimpdf OUTPUT_SCRIPT deploy_script
             DEPLOY_TOOL_OPTIONS "-codesign=-")
+    elseif(MSVC)
+        # Ship app-local MSVC DLLs rather than an unexecuted vc_redist installer.
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        include(InstallRequiredSystemLibraries)
+        if(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+            message(FATAL_ERROR "MSVC runtime DLLs were not found for packaging")
+        endif()
+        qt_generate_deploy_app_script(TARGET slimpdf OUTPUT_SCRIPT deploy_script
+            NO_COMPILER_RUNTIME)
     else()
         qt_generate_deploy_app_script(TARGET slimpdf OUTPUT_SCRIPT deploy_script)
     endif()
