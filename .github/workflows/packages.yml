@@ -55,7 +55,12 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
       - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+        shell: bash
+        run: |
+          if ! ctest --test-dir build -C Release --output-on-failure; then
+            python -c "from pathlib import Path; text = Path('build/Testing/Temporary/LastTest.log').read_text(errors='replace'); print('::error title=Qt Test output::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))"
+            exit 1
+          fi
       - name: Package
         working-directory: build
         run: cpack -C Release --config CPackConfig.cmake
