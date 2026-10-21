@@ -1,103 +1,105 @@
 # SlimPDF
 
-A lightweight, cross-platform PDF reader built with C++ and Qt6.
+SlimPDF is a small desktop PDF reader built with C++17 and Qt 6. It combines continuous page scrolling, live text selection, and automatic reloads so you can keep reading while a PDF changes on disk.
 
 ## Features
 
-- **Non-locking file access** — the file handle is released immediately after rendering, so you can rename, move, or replace the PDF while it is open
-- **Auto-refresh** — watches the file for changes and reloads automatically, preserving your scroll position
-- **Zoom controls** — zoom in/out and 1:1 reset via toolbar icons
-- **Fit modes** — fit to width, height, or full page; the active mode is highlighted in the toolbar and reapplied on window resize
-- **Multi-page scrolling** — all pages are rendered in a single continuous scroll view
-- **Page indicator** — status bar shows "Page X of N" when at least 90% of that page is visible; otherwise it shows the visible range as "Pages X–Y of N" (or a single page when only one is visible)
-- **Text selection** — the cursor changes to an I-beam over selectable text; drag in either direction to highlight text continuously across lines, and release to copy it to the clipboard
-- **Recent files** — persisted across sessions; accessible from the macOS Dock icon right-click menu under **Open Recent**
-- **Drag-and-drop** — drop a PDF onto the window to open it
+- **Continuous reading.** Scroll through all pages in one window, with the page number and zoom level in the status bar.
+- **Page-aware status.** When at least 90% of a page is visible, the status bar shows that page alone, such as `Page 3 of 10`. Otherwise, it shows the visible range, such as `Pages 3–4 of 10`. If only one page is visible, it shows a single page number.
+- **Live text selection.** The pointer becomes an I-beam over selectable text. Click and drag in either direction to highlight text across lines within a page. Highlights follow the text as you drag, and releasing the mouse copies the selection to the clipboard.
+- **Zoom and fit controls.** Zoom from 25% to 400%, reset to 100%, or fit the document to the window's width, height, or full page. The active fit button stays highlighted and the fit is recalculated when you resize the window. Manual zoom turns off the fit mode.
+- **Automatic reloads.** Changes to the open PDF trigger a reload after a short delay, preserving the vertical scroll position.
+- **Files stay available.** SlimPDF reads the PDF into memory and closes the source file before rendering. You can rename, move, or replace the file while its current contents remain visible. Automatic reloads watch the original path; reopen the PDF if you move or rename it.
+- **Recent files.** The ten most recently opened files persist across sessions under **File → Open Recent**, with an option to clear the list. On macOS, they are also available from the Dock icon's **Open Recent** menu.
+- **Flexible opening.** Open a PDF from the File menu, drop it onto the window, or pass its path on the command line.
 
-## Requirements
+Text selection uses the PDF's existing text layer. Image-only scans need a text layer before their text can be selected.
 
-| Dependency | Version |
-|------------|---------|
-| Qt         | 6.4 or later (Core, Gui, Widgets, Pdf, Svg) |
-| CMake      | 3.19 or later |
-| C++        | 17 |
+## Using SlimPDF
 
-On macOS, Objective-C++ support is also required (included with Xcode).
+Launching SlimPDF without a file opens an empty reader window. Choose **File → Open…**, drag a PDF onto the window, or choose a recent file to start reading. Opening another PDF replaces the document in that window.
 
-## Building
+Use the toolbar or **View** menu for zoom and fit controls. Click an active fit button again to turn off automatic fitting while keeping the current zoom.
 
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-```
+### Keyboard and mouse controls
 
-The resulting app bundle is at `build/slimpdf.app` (macOS) or `build/slimpdf` (Linux/Windows).
+| Action | macOS | Linux / Windows |
+| --- | --- | --- |
+| Open a file | ⌘O | Ctrl+O |
+| Zoom in | ⌘+ | Ctrl++ |
+| Zoom out | ⌘− | Ctrl+− |
+| Reset zoom to 100% | ⌘0 | Ctrl+0 |
+| Zoom with the mouse wheel | ⌘ + scroll | Ctrl + scroll |
+| Select and copy text | Drag over text, then release | Drag over text, then release |
 
-### macOS (MacPorts)
+### Launch from the command line
 
-```bash
-sudo port install qt6 cmake
-cmake -B build -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_PREFIX_PATH=/opt/local/libexec/qt6
-cmake --build build --parallel
-```
-
-### Linux (apt)
+On macOS:
 
 ```bash
-sudo apt install cmake qt6-base-dev qt6-pdf-dev libqt6svg6-dev
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-```
-
-## Testing
-
-The selection tests use Qt Test and run without opening a window:
-
-```bash
-ctest --test-dir build --output-on-failure
-```
-
-To build only the application without Qt Test, configure with `-DBUILD_TESTING=OFF`.
-
-## Usage
-
-```bash
-# Open the file picker
 ./build/slimpdf.app/Contents/MacOS/slimpdf
-
-# Open a specific file
 ./build/slimpdf.app/Contents/MacOS/slimpdf document.pdf
 ```
 
-**Keyboard shortcuts**
+On Linux:
 
-| Action | Shortcut |
-|--------|----------|
-| Open file | Ctrl+O |
-| Zoom in | Ctrl++ |
-| Zoom out | Ctrl+- |
-| Actual size (1:1) | Ctrl+0 |
-
-## Project structure
-
+```bash
+./build/slimpdf document.pdf
 ```
-SlimPDF/
-├── CMakeLists.txt
-├── icons/              # SVG toolbar icons
-│   ├── zoom-in.svg
-│   ├── zoom-out.svg
-│   ├── zoom-reset.svg
-│   ├── fit-width.svg
-│   ├── fit-height.svg
-│   └── fit-page.svg
-└── src/
-    ├── main.cpp
-    ├── main_window.h
-    ├── main_window.cpp
-    ├── macos_dock.h
-    └── macos_dock.mm   # macOS Dock right-click menu (Objective-C++)
+
+On Windows, run `slimpdf.exe` from the build output directory. With a multi-configuration generator such as Visual Studio, it is typically under `build/Release/`.
+
+## Build from source
+
+Requirements:
+
+- A C++17 compiler.
+- CMake 3.19 or later.
+- Qt 6.4 or later with Core, Gui, Widgets, Pdf, and Svg.
+- Qt Test for the test suite, which is enabled by default.
+- On macOS, an Objective-C++ compiler and the AppKit SDK, provided by Xcode's developer tools.
+
+From the project directory:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
 ```
+
+If CMake cannot find Qt, pass its installation prefix with `-DCMAKE_PREFIX_PATH=/path/to/qt`.
+
+For a macOS Qt installation managed by MacPorts:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/opt/local/libexec/qt6
+cmake --build build --config Release --parallel
+```
+
+The application is built as `build/slimpdf.app` on macOS, `build/slimpdf` on Linux, or `slimpdf.exe` in the Windows build output directory. Multi-configuration generators may add a configuration directory such as `Release`.
+
+To build the application without the test suite or Qt Test dependency, add `-DBUILD_TESTING=OFF` to the CMake configuration command.
+
+## Tests
+
+After building, run:
+
+```bash
+ctest --test-dir build -C Release --output-on-failure
+```
+
+The Qt Test suite runs with the offscreen platform plugin. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, copying on release, and clearing selections at three zoom levels.
+
+## Source layout
+
+| Path | Contents |
+| --- | --- |
+| `src/main.cpp` | Application startup and command-line file opening |
+| `src/main_window.h`, `src/main_window.cpp` | Reader window, page rendering, selection, zoom, file watching, and recent files |
+| `src/macos_dock.h`, `src/macos_dock.mm` | macOS Dock recent-file menu |
+| `icons/` | SVG toolbar icons embedded in the application |
+| `tests/text_selection_test.cpp` | Text selection regression tests |
+| `CMakeLists.txt` | Application and test build configuration |
 
 ## License
 
