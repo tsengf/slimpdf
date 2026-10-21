@@ -10,7 +10,7 @@ SlimPDF is a small desktop PDF reader built with C++17 and Qt 6. It combines con
 - **Zoom and fit controls.** Zoom from 25% to 400%, reset to 100%, or fit the document to the window's width, height, or full page. The active fit button stays highlighted and the fit is recalculated when you resize the window. Manual zoom turns off the fit mode.
 - **Automatic reloads.** Changes to the open PDF trigger a reload after a short delay, preserving the vertical scroll position.
 - **Files stay available.** SlimPDF reads the PDF into memory and closes the source file before rendering. You can rename, move, or replace the file while its current contents remain visible. Automatic reloads watch the original path; reopen the PDF if you move or rename it.
-- **Recent files.** The ten most recently opened files persist across sessions under **File → Open Recent**, with an option to clear the list. On macOS, they are also available from the Dock icon's **Open Recent** menu.
+- **Recent files.** Recently opened files persist across sessions under **File → Open Recent**, with an option to clear the list. On macOS, the list follows the system's recent-document limit, including zero, and is also available from the Dock icon's **Open Recent** menu. Linux and Windows retain up to ten files.
 - **Flexible opening.** Open a PDF from the File menu, drop it onto the window, or pass its path on the command line.
 
 Text selection uses the PDF's existing text layer. Image-only scans need a text layer before their text can be selected.

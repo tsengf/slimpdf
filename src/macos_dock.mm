@@ -2,8 +2,15 @@
 #import <AppKit/AppKit.h>
 #import <objc/runtime.h>
 #include <functional>
+#include <limits>
 #include <QString>
 #include <QStringList>
+
+int macOSRecentFileLimit()
+{
+    const NSUInteger limit = [NSDocumentController sharedDocumentController].maximumRecentDocumentCount;
+    return static_cast<int>(qMin(limit, static_cast<NSUInteger>(std::numeric_limits<int>::max())));
+}
 
 static std::function<void(const QString &)> g_openCb;
 static NSMutableArray<NSString *> *g_files;
@@ -25,10 +32,12 @@ static _PDFDockTarget *g_target;
 // Build a fresh menu from the current file list.
 static NSMenu *dockMenuImpl(id, SEL, NSApplication *) {
     NSMenu *top = [[NSMenu alloc] initWithTitle:@""];
-    if (!g_files || g_files.count == 0) return top;
+    const NSUInteger limit = static_cast<NSUInteger>(macOSRecentFileLimit());
+    if (!g_files || g_files.count == 0 || limit == 0) return top;
 
     NSMenu *sub = [[NSMenu alloc] initWithTitle:@"Open Recent"];
-    for (NSString *path in g_files) {
+    for (NSUInteger i = 0; i < qMin(g_files.count, limit); ++i) {
+        NSString *path = g_files[i];
         NSMenuItem *item = [[NSMenuItem alloc]
             initWithTitle:path.lastPathComponent
                    action:@selector(openFile:)

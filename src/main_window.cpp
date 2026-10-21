@@ -240,6 +240,12 @@ void MainWindow::initUi()
     m_recentMenu = new QMenu(tr("Open Recent"), this);
     fm->addMenu(m_recentMenu);
     updateRecentMenu();
+    connect(m_recentMenu, &QMenu::aboutToShow, this, &MainWindow::updateRecentMenu);
+    connect(qApp, &QGuiApplication::applicationStateChanged, this,
+            [this](Qt::ApplicationState state) {
+                if (state == Qt::ApplicationActive)
+                    updateRecentMenu();
+            });
 
 #ifdef Q_OS_MACOS
     // Defer until after the event loop starts so NSApp's delegate is ready.
@@ -467,7 +473,14 @@ void MainWindow::updatePageIndicator()
 
 // ── Recent files ──────────────────────────────────────────────────────────────
 
-static constexpr int MAX_RECENT = 10;
+static int recentFileLimit()
+{
+#ifdef Q_OS_MACOS
+    return macOSRecentFileLimit();
+#else
+    return 10;
+#endif
+}
 
 void MainWindow::loadRecentFiles()
 {
@@ -485,14 +498,15 @@ void MainWindow::addRecentFile(const QString &path)
 {
     m_recentFiles.removeAll(path);
     m_recentFiles.prepend(path);
-    while (m_recentFiles.size() > MAX_RECENT)
-        m_recentFiles.removeLast();
-    saveRecentFiles();
     updateRecentMenu();
 }
 
 void MainWindow::updateRecentMenu()
 {
+    const int limit = recentFileLimit();
+    while (m_recentFiles.size() > limit)
+        m_recentFiles.removeLast();
+    saveRecentFiles();
     m_recentMenu->clear();
 
     for (const QString &path : std::as_const(m_recentFiles)) {
