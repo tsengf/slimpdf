@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=SlimPDF
+GenericName=PDF Reader
+Comment=Read PDFs with continuous scrolling and automatic reloads
+Exec=slimpdf %f
+TryExec=slimpdf
+Icon=application-pdf
+Terminal=false
+Categories=Office;Viewer;
+MimeType=application/pdf;
+StartupNotify=true

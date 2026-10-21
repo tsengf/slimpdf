@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+include(GNUInstallDirs)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Pdf Svg)
 qt_standard_project_setup()
 
@@ -58,6 +60,22 @@ install(TARGETS slimpdf
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+if(UNIX AND NOT APPLE)
+    install(FILES packaging/linux/slimpdf.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+    install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/slimpdf)
+elseif(APPLE)
+    install(FILES LICENSE DESTINATION slimpdf.app/Contents/Resources)
+else()
+    install(FILES LICENSE README.md DESTINATION .)
+endif()
+
+option(SLIMPDF_BUILD_PACKAGES "Enable native installation packages" OFF)
+if(SLIMPDF_BUILD_PACKAGES)
+    include(cmake/Packaging.cmake)
+endif()
 
 include(CTest)
 if(BUILD_TESTING)

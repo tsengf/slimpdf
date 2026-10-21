@@ -52,6 +52,38 @@ On Linux:
 
 On Windows, run `slimpdf.exe` from the build output directory. With a multi-configuration generator such as Visual Studio, it is typically under `build/Release/`.
 
+## Installation packages
+
+Native packages are built by the **Installation packages** GitHub Actions workflow. Once the workflow has run, download its artifacts from the repository's [Actions page](https://github.com/tsengf/slimpdf/actions/workflows/packages.yml).
+
+| Platform | Package | Installation |
+| --- | --- | --- |
+| macOS | `.dmg` | Open the disk image and drag `slimpdf.app` to Applications. CI builds a universal app for Apple silicon and Intel Macs. |
+| Windows x64 | `.exe` | Run the installer. It adds a Start menu shortcut and an uninstaller. |
+| Ubuntu 24.04 x64 | `.deb` | Run `sudo apt install ./slimpdf_*.deb`. |
+| Fedora 43 x64 | `.rpm` | Run `sudo dnf install ./slimpdf-*.rpm`. |
+
+macOS and Windows packages include the Qt runtime. Linux packages use the distribution's Qt packages; the package manager installs the required dependencies. Linux packages should be built on the distribution and release they target.
+
+macOS packages are ad-hoc signed, without Apple notarization. Windows installers are unsigned. Public distribution with a verified publisher requires the appropriate signing certificates.
+
+### Build packages locally
+
+Build on the platform you want to package for. macOS and Windows packaging require Qt 6.5 or later and its deployment tools. Windows also requires NSIS 3.03 or later on `PATH`. Linux `.deb` builds require `dpkg-dev`; `.rpm` builds require `rpm-build`.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSLIMPDF_BUILD_PACKAGES=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+cpack --config build/CPackConfig.cmake -C Release
+```
+
+Add `-DCMAKE_PREFIX_PATH=/path/to/qt` if needed. On Linux, choose the native package format by adding `-G DEB` or `-G RPM` to the `cpack` command. Generated packages are written to `build/packages/`, with the version and architecture in their names.
+
+On macOS, the package contains the architecture built locally. With a universal Qt installation, add `'-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'` when configuring to include both architectures.
+
+The workflow runs on pushes to `main`, version tags, pull requests, and manual dispatch. It builds and tests each platform, then uploads packages as workflow artifacts for 30 days. It does not publish GitHub Releases automatically.
+
 ## Build from source
 
 Requirements:
@@ -103,7 +135,10 @@ The Qt Test suite runs with the offscreen platform plugin. It checks text cursor
 | `icons/` | SVG toolbar icons embedded in the application |
 | `tests/text_selection_test.cpp` | Text selection regression tests |
 | `CMakeLists.txt` | Application and test build configuration |
+| `cmake/Packaging.cmake` | Native installer configuration and Qt deployment |
+| `packaging/linux/slimpdf.desktop` | Linux application menu entry and PDF MIME type |
+| `.github/workflows/packages.yml` | Native package builds for macOS, Windows, Ubuntu, and Fedora |
 
 ## License
 
-MIT
+[MIT](LICENSE)

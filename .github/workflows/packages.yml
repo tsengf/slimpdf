@@ -1,0 +1,158 @@
+name: Installation packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS universal
+            os: macos-15
+            qt-arch: clang_64
+            cmake-args: '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
+            artifact: macos-universal
+            pattern: '*.dmg'
+          - name: Windows x64
+            os: windows-2022
+            qt-arch: win64_msvc2022_64
+            cmake-args: '-Ax64'
+            artifact: windows-x64
+            pattern: '*.exe'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: ${{ matrix.qt-arch }}
+          modules: 'qtpdf'
+          cache: true
+      - name: Locate NSIS
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $nsis = "${env:ProgramFiles(x86)}\NSIS"
+          if (!(Test-Path "$nsis\makensis.exe")) {
+            choco install nsis --yes --no-progress
+          }
+          $nsis | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Configure
+        shell: bash
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DSLIMPDF_BUILD_PACKAGES=ON '${{ matrix.cmake-args }}'
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package
+        working-directory: build
+        run: cpack -C Release --config CPackConfig.cmake
+      - name: Verify macOS disk image
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          image=$(find build/packages -maxdepth 1 -name '*.dmg' -print -quit)
+          hdiutil verify "$image"
+          mkdir -p build/package-mount
+          hdiutil attach -readonly -nobrowse -mountpoint build/package-mount "$image"
+          trap 'hdiutil detach build/package-mount' EXIT
+          codesign --verify --deep --strict build/package-mount/slimpdf.app
+          test -L build/package-mount/Applications
+      - name: Install and smoke test Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem build/packages/*.exe | Select-Object -First 1
+          $destination = Join-Path $env:RUNNER_TEMP 'SlimPDF-install'
+          $install = Start-Process $installer.FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+          $app = Join-Path $destination 'bin/slimpdf.exe'
+          if (!(Test-Path $app)) { throw 'Installed executable is missing' }
+          $env:QT_PLUGIN_PATH = ''
+          $process = Start-Process $app -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 3
+          if ($process.HasExited) { throw "Installed app exited early: $($process.ExitCode)" }
+          Stop-Process -Id $process.Id
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slimpdf-${{ matrix.artifact }}
+          path: build/packages/${{ matrix.pattern }}
+          if-no-files-found: error
+          retention-days: 30
+
+  debian:
+    name: Ubuntu 24.04 x64 (.deb)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ qt6-base-dev qt6-pdf-dev qt6-svg-dev dpkg-dev desktop-file-utils
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLIMPDF_BUILD_PACKAGES=ON
+      - name: Build and test
+        run: |
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+          desktop-file-validate packaging/linux/slimpdf.desktop
+      - name: Package and inspect
+        working-directory: build
+        run: |
+          cpack -G DEB --config CPackConfig.cmake
+          dpkg-deb --info packages/*.deb
+          dpkg-deb --contents packages/*.deb
+      - name: Install and smoke test
+        run: |
+          sudo apt-get install -y ./build/packages/*.deb
+          QT_QPA_PLATFORM=offscreen timeout 5s /usr/bin/slimpdf > build/installed.log 2>&1 || test "$?" -eq 124
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slimpdf-linux-deb-x64
+          path: build/packages/*.deb
+          if-no-files-found: error
+          retention-days: 30
+
+  fedora:
+    name: Fedora 43 x64 (.rpm)
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    steps:
+      - name: Install dependencies
+        run: dnf install -y git cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtpdf-devel qt6-qtsvg-devel rpm-build desktop-file-utils findutils
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLIMPDF_BUILD_PACKAGES=ON
+      - name: Build and test
+        run: |
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+          desktop-file-validate packaging/linux/slimpdf.desktop
+      - name: Package and inspect
+        working-directory: build
+        run: |
+          cpack -G RPM --config CPackConfig.cmake
+          rpm -qip packages/*.rpm
+          rpm -qlp packages/*.rpm
+      - name: Install and smoke test
+        run: |
+          dnf install -y ./build/packages/*.rpm
+          QT_QPA_PLATFORM=offscreen timeout 5s /usr/bin/slimpdf > build/installed.log 2>&1 || test "$?" -eq 124
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slimpdf-linux-rpm-x64
+          path: build/packages/*.rpm
+          if-no-files-found: error
+          retention-days: 30
