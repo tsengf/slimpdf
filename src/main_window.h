@@ -124,7 +124,7 @@ protected:
     double          m_zoom         = 1.0;
     int             m_firstVisible = 0;
     int             m_lastVisible  = 0;
-    FitMode         m_fitMode      = FitMode::None;
+    FitMode         m_fitMode      = FitMode::Width;
 
     static constexpr double BASE_DPI    = 150.0;
     static constexpr double MIN_ZOOM    = 0.25;

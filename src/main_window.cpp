@@ -223,6 +223,7 @@ void MainWindow::initUi()
     fitGroup->addAction(m_fitWAct);
     fitGroup->addAction(m_fitHAct);
     fitGroup->addAction(m_fitPAct);
+    m_fitWAct->setChecked(true);
 
     connect(zoomInAct,  &QAction::triggered, this, [this] { setZoom(m_zoom * 1.25); });
     connect(zoomOutAct, &QAction::triggered, this, [this] { setZoom(m_zoom / 1.25); });
