@@ -54,6 +54,12 @@ jobs:
           -DSLIMPDF_BUILD_PACKAGES=ON '${{ matrix.cmake-args }}'
       - name: Build
         run: cmake --build build --config Release --parallel
+      - name: Deploy Windows test runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:QT_ROOT_DIR/bin/windeployqt.exe" --no-translations --add-plugin-types platforms build/Release/text_selection_test.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Test runtime deployment failed' }
       - name: Test
         shell: bash
         run: |

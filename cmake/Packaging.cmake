@@ -1,9 +1,15 @@
 # Native installation packages. Enable with -DSLIMPDF_BUILD_PACKAGES=ON.
 if(APPLE OR WIN32)
-    if(Qt6_VERSION VERSION_LESS 6.5)
-        message(FATAL_ERROR "Bundled installation packages require Qt 6.5 or newer")
+    if(Qt6_VERSION VERSION_LESS 6.7)
+        message(FATAL_ERROR "Bundled installation packages require Qt 6.7 or newer")
     endif()
-    qt_generate_deploy_app_script(TARGET slimpdf OUTPUT_SCRIPT deploy_script)
+    if(APPLE)
+        # Older macdeployqt versions do not sign bundles unless asked explicitly.
+        qt_generate_deploy_app_script(TARGET slimpdf OUTPUT_SCRIPT deploy_script
+            DEPLOY_TOOL_OPTIONS "-codesign=-")
+    else()
+        qt_generate_deploy_app_script(TARGET slimpdf OUTPUT_SCRIPT deploy_script)
+    endif()
     install(SCRIPT "${deploy_script}")
 endif()
 

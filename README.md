@@ -69,7 +69,7 @@ macOS packages are ad-hoc signed, without Apple notarization. Windows installers
 
 ### Build packages locally
 
-Build on the platform you want to package for. macOS and Windows packaging require Qt 6.5 or later and its deployment tools. Windows also requires NSIS 3.03 or later on `PATH`. Linux `.deb` builds require `dpkg-dev`; `.rpm` builds require `rpm-build`.
+Build on the platform you want to package for. macOS and Windows packaging require Qt 6.7 or later and its deployment tools. Windows also requires NSIS 3.03 or later on `PATH`. Linux `.deb` builds require `dpkg-dev`; `.rpm` builds require `rpm-build`.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSLIMPDF_BUILD_PACKAGES=ON
