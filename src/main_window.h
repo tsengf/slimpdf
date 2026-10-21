@@ -27,7 +27,7 @@ public:
 
 signals:
     void selectionStarted();
-    void selectionMade(const QString &text);
+    void selectionChanged(const QString &text);
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -79,7 +79,8 @@ private slots:
     void fitHeight();
     void fitPage();
     void updatePageIndicator();
-    void onSelectionMade(const QString &text);
+    void onSelectionChanged(const QString &text);
+    void copySelection();
 
 private:
     enum class FitMode { None, Width, Height, Page };
@@ -108,10 +109,12 @@ protected:
     QTimer             *m_debounce    = nullptr;
     QTimer             *m_resizeTimer = nullptr;
     QMenu              *m_recentMenu  = nullptr;
+    QAction            *m_copyAct     = nullptr;
     QAction            *m_fitWAct     = nullptr;
     QAction            *m_fitHAct     = nullptr;
     QAction            *m_fitPAct     = nullptr;
 
+    QString         m_selectedText;
     QString         m_currentFile;
     QStringList     m_recentFiles;
     // Destroy the document before the in-memory device it reads from.

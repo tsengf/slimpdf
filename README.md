@@ -6,7 +6,7 @@ SlimPDF is a small desktop PDF reader built with C++17 and Qt 6. It combines con
 
 - **Continuous reading.** Scroll through all pages in one window, with the page number and zoom level in the status bar.
 - **Page-aware status.** When at least 90% of a page is visible, the status bar shows that page alone, such as `Page 3 of 10`. Otherwise, it shows the visible range, such as `Pages 3–4 of 10`. If only one page is visible, it shows a single page number.
-- **Live text selection.** The pointer becomes an I-beam over selectable text. Click and drag in either direction to highlight text across lines within a page. Highlights follow the text as you drag, and releasing the mouse copies the selection to the clipboard.
+- **Live text selection.** The pointer becomes an I-beam over selectable text. Click and drag in either direction to highlight text across lines within a page. Highlights follow the text as you drag, and stay visible when you release the mouse. Use **Edit → Copy** or the copy shortcut to copy the selected text.
 - **Zoom and fit controls.** Zoom from 25% to 400%, reset to 100%, or fit the document to the window's width, height, or full page. The active fit button stays highlighted and the fit is recalculated when you resize the window. Manual zoom turns off the fit mode.
 - **Automatic reloads.** Changes to the open PDF trigger a reload after a short delay, preserving the vertical scroll position.
 - **Files stay available.** SlimPDF reads the PDF into memory and closes the source file before rendering. You can rename, move, or replace the file while its current contents remain visible. Automatic reloads watch the original path; reopen the PDF if you move or rename it.
@@ -30,7 +30,8 @@ Use the toolbar or **View** menu for zoom and fit controls. Click an active fit 
 | Zoom out | ⌘− | Ctrl+− |
 | Reset zoom to 100% | ⌘0 | Ctrl+0 |
 | Zoom with the mouse wheel | ⌘ + scroll | Ctrl + scroll |
-| Select and copy text | Drag over text, then release | Drag over text, then release |
+| Select text | Drag over text, then release | Drag over text, then release |
+| Copy selected text | ⌘C | Ctrl+C |
 
 ### Launch from the command line
 
@@ -88,7 +89,7 @@ After building, run:
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The Qt Test suite runs with the offscreen platform plugin. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, copying on release, and clearing selections at three zoom levels.
+The Qt Test suite runs with the offscreen platform plugin. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, and clearing selections at three zoom levels. It also checks that selection leaves the clipboard unchanged and that the Copy command copies only the current selection.
 
 ## Source layout
 

@@ -2,17 +2,106 @@
 
 #include <QApplication>
 #include <QBuffer>
+#include <QAction>
+#include <QClipboard>
+#include <QMenu>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPdfDocument>
 #include <QPdfSelection>
 #include <QPdfWriter>
-#include <QSignalSpy>
 #include <QtTest>
 
 class TextSelectionTest : public QObject {
     Q_OBJECT
+    QTemporaryDir m_settingsDir;
+
 private slots:
+    void initTestCase()
+    {
+        QVERIFY(m_settingsDir.isValid());
+        QCoreApplication::setOrganizationName("SlimPDFTests");
+        QCoreApplication::setApplicationName("TextSelectionTests");
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDir.path());
+    }
+
+    void copyCommand()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath("selection.pdf");
+        {
+            QPdfWriter writer(path);
+            writer.setResolution(72);
+            writer.setPageSize(QPageSize(QSizeF(300, 300), QPageSize::Point));
+            writer.setPageMargins(QMarginsF(0, 0, 0, 0));
+            QPainter painter(&writer);
+            painter.setFont(QFont("Helvetica", 16));
+            painter.drawText(QPointF(30, 60), "Select this text");
+        }
+        QPdfDocument document;
+        QCOMPARE(document.load(path), QPdfDocument::Error::None);
+        const QPointF start = document.getSelectionAtIndex(0, 1, 1).boundingRectangle().center();
+        const QPointF end = document.getSelectionAtIndex(0, 12, 1).boundingRectangle().center();
+        document.close();
+
+        MainWindow window;
+        QAction *copy = nullptr;
+        for (auto *menu : window.findChildren<QMenu *>()) {
+            if (menu->title() != "&Edit") continue;
+            for (auto *action : menu->actions()) {
+                if (action->shortcut() == QKeySequence(QKeySequence::Copy))
+                    copy = action;
+            }
+        }
+        QVERIFY(copy);
+        QVERIFY(!copy->isEnabled());
+        window.loadFile(path);
+        auto *page = window.findChild<PageWidget *>();
+        QVERIFY(page);
+        const double scale = page->width() / 300.0;
+        auto mouse = [&](QEvent::Type type, QPointF position, Qt::MouseButtons buttons) {
+            QMouseEvent event(type, position * scale, position * scale,
+                              type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                              buttons, Qt::NoModifier);
+            QApplication::sendEvent(page, &event);
+        };
+        auto select = [&] {
+            mouse(QEvent::MouseButtonPress, start, Qt::LeftButton);
+            mouse(QEvent::MouseMove, end, Qt::LeftButton);
+            mouse(QEvent::MouseButtonRelease, end, Qt::NoButton);
+        };
+
+        auto *clipboard = QApplication::clipboard();
+        clipboard->setText("Existing clipboard contents");
+        select();
+        QVERIFY(copy->isEnabled());
+        QCOMPARE(clipboard->text(), "Existing clipboard contents");
+        copy->trigger();
+        QVERIFY(clipboard->text().contains("this"));
+        const QString copiedText = clipboard->text();
+        QVERIFY(copy->isEnabled()); // Copy preserves the selection.
+
+        mouse(QEvent::MouseButtonPress, QPointF(10, 10), Qt::LeftButton);
+        mouse(QEvent::MouseButtonRelease, QPointF(10, 10), Qt::NoButton);
+        QVERIFY(!copy->isEnabled());
+        clipboard->setText("Keep this clipboard text");
+        copy->trigger();
+        QCOMPARE(clipboard->text(), "Keep this clipboard text");
+
+        select();
+        copy->trigger();
+        QCOMPARE(clipboard->text(), copiedText);
+        window.loadFile(path);
+        QVERIFY(!copy->isEnabled()); // Reloading cannot copy the old selection.
+        clipboard->setText("After reload");
+        copy->trigger();
+        QCOMPARE(clipboard->text(), "After reload");
+    }
+
     void selection_data()
     {
         QTest::addColumn<double>("zoom");
@@ -53,7 +142,9 @@ private slots:
 
         PageWidget widget(&document, 0);
         widget.setPixmap(QPixmap::fromImage(document.render(0, QSize(300 * zoom, 300 * zoom))));
-        QSignalSpy copied(&widget, &PageWidget::selectionMade);
+        QString selectedText;
+        connect(&widget, &PageWidget::selectionChanged, this,
+                [&](const QString &text) { selectedText = text; });
         auto mouse = [&](QEvent::Type type, QPointF point, Qt::MouseButton button, Qt::MouseButtons buttons) {
             QMouseEvent event(type, point, point, button, buttons, Qt::NoModifier);
             QApplication::sendEvent(&widget, &event);
@@ -86,7 +177,7 @@ private slots:
         const QImage plain = image();
         press(start);
         release(start);
-        QCOMPARE(copied.count(), 0);
+        QVERIFY(selectedText.isEmpty());
         QCOMPARE(image(), plain);
 
         press(start);
@@ -95,10 +186,9 @@ private slots:
         QVERIFY(highlighted != plain); // Highlight is visible before release.
         // The space between lines stays white even inside the drag region.
         QCOMPARE(highlighted.pixelColor(QPoint(45 * zoom, 75 * zoom)), Qt::white);
-        QCOMPARE(copied.count(), 0);
+        QVERIFY(!selectedText.isEmpty());
         release(end);
-        QCOMPARE(copied.count(), 1);
-        const QString forward = copied.takeFirst().first().toString();
+        const QString forward = selectedText;
         QVERIFY(forward.contains("first line"));
         QVERIFY(forward.contains("Seco"));
         QCOMPARE(image(), highlighted);
@@ -106,8 +196,7 @@ private slots:
         press(end);
         drag(start);
         release(start);
-        QCOMPARE(copied.count(), 1);
-        QCOMPARE(copied.takeFirst().first().toString(), forward);
+        QCOMPARE(selectedText, forward);
         QCOMPARE(image(), highlighted);
 
         // Same-line horizontal drags also select text.
@@ -115,14 +204,13 @@ private slots:
         press(start);
         drag(sameLine);
         release(sameLine);
-        QCOMPARE(copied.count(), 1);
-        QVERIFY(copied.takeFirst().first().toString().contains("first"));
+        QVERIFY(selectedText.contains("first"));
 
         // Clicking whitespace clears the selection without copying anything.
         press(QPointF(10, 10) * zoom);
         drag(end);
         release(end);
-        QCOMPARE(copied.count(), 0);
+        QVERIFY(selectedText.isEmpty());
         QCOMPARE(image(), plain);
     }
 };

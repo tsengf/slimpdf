@@ -99,6 +99,7 @@ void PageWidget::updateSelection(const QPointF &position)
         m_selBounds = selection.bounds();
         m_selectedText = selection.text();
     }
+    emit selectionChanged(m_selectedText);
     update();
 }
 
@@ -106,6 +107,7 @@ void PageWidget::clearSelection()
 {
     m_selBounds.clear();
     m_selectedText.clear();
+    emit selectionChanged(m_selectedText);
     update();
 }
 
@@ -149,8 +151,6 @@ void PageWidget::mouseReleaseEvent(QMouseEvent *e)
         updateSelection(e->position());
         m_selecting = false;
         setCursor(isOverText(e->position()) ? Qt::IBeamCursor : Qt::ArrowCursor);
-        if (!m_selectedText.trimmed().isEmpty())
-            emit selectionMade(m_selectedText);
     }
 }
 
@@ -261,6 +261,13 @@ void MainWindow::initUi()
     connect(quitA, &QAction::triggered, qApp, &QApplication::quit);
 
 
+    // Edit menu
+    auto *em = menuBar()->addMenu(tr("&Edit"));
+    m_copyAct = em->addAction(tr("&Copy"));
+    m_copyAct->setShortcut(QKeySequence::Copy);
+    m_copyAct->setEnabled(false);
+    connect(m_copyAct, &QAction::triggered, this, &MainWindow::copySelection);
+
     // View menu
     auto *vm = menuBar()->addMenu(tr("&View"));
     vm->addAction(zoomInAct);
@@ -366,6 +373,7 @@ void MainWindow::render(int scrollTo)
 
 void MainWindow::rebuildPageLabels()
 {
+    onSelectionChanged({});
     while (m_pagesLayout->count()) {
         QLayoutItem *item = m_pagesLayout->takeAt(0);
         delete item->widget();
@@ -381,7 +389,7 @@ void MainWindow::rebuildPageLabels()
                 if (w && w != pw) w->clearSelection();
             }
         });
-        connect(pw, &PageWidget::selectionMade, this, &MainWindow::onSelectionMade);
+        connect(pw, &PageWidget::selectionChanged, this, &MainWindow::onSelectionChanged);
         m_pagesLayout->addWidget(pw);
     }
 
@@ -593,8 +601,16 @@ void MainWindow::applyFit()
 
 // ── Text selection ────────────────────────────────────────────────────────────
 
-void MainWindow::onSelectionMade(const QString &text)
+void MainWindow::onSelectionChanged(const QString &text)
 {
+    m_selectedText = text;
+    m_copyAct->setEnabled(!text.trimmed().isEmpty());
+}
+
+void MainWindow::copySelection()
+{
+    if (m_selectedText.trimmed().isEmpty()) return;
+    const QString &text = m_selectedText;
     QApplication::clipboard()->setText(text);
     statusBar()->showMessage(
         tr("Copied %1 character%2").arg(text.length()).arg(text.length() == 1 ? "" : "s"),
