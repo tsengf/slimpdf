@@ -123,7 +123,7 @@ After building, run:
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The Qt Test suite runs with the offscreen platform plugin. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, and clearing selections at three zoom levels. It also checks that selection leaves the clipboard unchanged and that the Copy command copies only the current selection.
+The Qt Test suite renders widgets into images. It runs offscreen on macOS and Linux and uses the native Windows platform for access to installed fonts. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, and clearing selections at three zoom levels. It also checks that selection leaves the clipboard unchanged and that the Copy command copies only the current selection.
 
 ## Source layout
 
