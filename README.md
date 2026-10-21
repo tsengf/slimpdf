@@ -10,7 +10,7 @@ A lightweight, cross-platform PDF reader built with C++ and Qt6.
 - **Fit modes** — fit to width, height, or full page; the active mode is highlighted in the toolbar and reapplied on window resize
 - **Multi-page scrolling** — all pages are rendered in a single continuous scroll view
 - **Page indicator** — status bar shows "Page X of N"; spanning two pages shows "Pages X–Y of N"
-- **Text selection** — drag to select text; the highlight follows individual text lines (word-processor style) and the selected text is copied to the clipboard
+- **Text selection** — the cursor changes to an I-beam over selectable text; drag in either direction to highlight text continuously across lines, and release to copy it to the clipboard
 - **Recent files** — persisted across sessions; accessible from the macOS Dock icon right-click menu under **Open Recent**
 - **Drag-and-drop** — drop a PDF onto the window to open it
 
@@ -49,6 +49,16 @@ sudo apt install cmake qt6-base-dev qt6-pdf-dev libqt6svg6-dev
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
+
+## Testing
+
+The selection tests use Qt Test and run without opening a window:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+To build only the application without Qt Test, configure with `-DBUILD_TESTING=OFF`.
 
 ## Usage
 

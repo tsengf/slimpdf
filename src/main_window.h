@@ -8,6 +8,10 @@
 #include <QVector>
 #include <QWidget>
 
+#include <memory>
+
+class QBuffer;
+class QPdfDocument;
 class QFileSystemWatcher;
 class QMenu;
 class QMouseEvent;
@@ -17,14 +21,13 @@ class QMouseEvent;
 class PageWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit PageWidget(int pageIndex, QWidget *parent = nullptr);
+    explicit PageWidget(QPdfDocument *document, int pageIndex, QWidget *parent = nullptr);
     void setPixmap(const QPixmap &px);
-    void highlightSelection(const QRect &selRect);
     void clearSelection();
 
 signals:
     void selectionStarted();
-    void selectionMade(int page, QRect widgetRect);
+    void selectionMade(const QString &text);
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -33,11 +36,18 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override;
 
 private:
+    QPointF pdfPosition(const QPointF &position) const;
+    bool isOverText(const QPointF &position) const;
+    void updateSelection(const QPointF &position);
+
+    QPdfDocument    *m_document;
     int              m_page;
     QPixmap          m_pixmap;
-    QPoint           m_pressPos;
-    QRect            m_dragRect;               // shown while dragging
-    QList<QPolygonF> m_selBounds;             // text-line polygons after release
+    QPointF          m_pressPos;
+    QSizeF           m_pageSize;
+    QList<QPolygonF> m_textBounds;
+    QList<QPolygonF> m_selBounds;
+    QString          m_selectedText;
     bool             m_selecting = false;
 };
 class QScrollArea;
@@ -69,7 +79,7 @@ private slots:
     void fitHeight();
     void fitPage();
     void updatePageIndicator();
-    void onSelectionMade(int page, QRect widgetRect);
+    void onSelectionMade(const QString &text);
 
 private:
     enum class FitMode { None, Width, Height, Page };
@@ -104,6 +114,9 @@ protected:
 
     QString         m_currentFile;
     QStringList     m_recentFiles;
+    // Destroy the document before the in-memory device it reads from.
+    std::unique_ptr<QBuffer> m_pdfBuffer;
+    std::unique_ptr<QPdfDocument> m_document;
     QVector<QImage> m_pageImages;
     double          m_zoom         = 1.0;
     int             m_firstVisible = 0;

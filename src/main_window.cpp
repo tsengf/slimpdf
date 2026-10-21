@@ -7,7 +7,9 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
+#include <QBuffer>
 #include <QCloseEvent>
+#include <QCursor>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFile>
@@ -19,7 +21,6 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPen>
 #include <QPdfDocument>
 #include <QPdfSelection>
 #include <QResizeEvent>
@@ -52,93 +53,60 @@ static QIcon svgIcon(const QString &path, int size = 22)
 
 // ── PageWidget ────────────────────────────────────────────────────────────────
 
-PageWidget::PageWidget(int pageIndex, QWidget *parent)
-    : QWidget(parent), m_page(pageIndex)
+PageWidget::PageWidget(QPdfDocument *document, int pageIndex, QWidget *parent)
+    : QWidget(parent), m_document(document), m_page(pageIndex),
+      m_pageSize(document->pagePointSize(pageIndex)),
+      m_textBounds(document->getAllText(pageIndex).bounds())
 {
-    setCursor(Qt::IBeamCursor);
+    setMouseTracking(true);
+    setCursor(Qt::ArrowCursor);
 }
 
 void PageWidget::setPixmap(const QPixmap &px)
 {
-    m_pixmap   = px;
-    m_dragRect = QRect();
-    m_selBounds.clear();
+    m_pixmap = px;
+    m_selecting = false;
+    clearSelection();
     setFixedSize(px.size());
+    setCursor(isOverText(mapFromGlobal(QCursor::pos())) ? Qt::IBeamCursor : Qt::ArrowCursor);
     update();
 }
 
-void PageWidget::highlightSelection(const QRect &selRect)
+QPointF PageWidget::pdfPosition(const QPointF &position) const
+{
+    return QPointF(position.x() * m_pageSize.width() / width(),
+                   position.y() * m_pageSize.height() / height());
+}
+
+bool PageWidget::isOverText(const QPointF &position) const
+{
+    const QPointF point = pdfPosition(position);
+    for (const QPolygonF &bounds : m_textBounds) {
+        if (bounds.containsPoint(point, Qt::OddEvenFill))
+            return true;
+    }
+    return false;
+}
+
+void PageWidget::updateSelection(const QPointF &position)
 {
     m_selBounds.clear();
-    if (m_pixmap.isNull() || !selRect.isValid()) { update(); return; }
-
-    const QImage img = m_pixmap.toImage().convertToFormat(QImage::Format_RGB32);
-    const int L = qBound(0, selRect.left(),   img.width()  - 1);
-    const int R = qBound(0, selRect.right(),  img.width()  - 1);
-    const int T = qBound(0, selRect.top(),    img.height() - 1);
-    const int B = qBound(0, selRect.bottom(), img.height() - 1);
-    if (L >= R || T >= B) { update(); return; }
-
-    // For each row, find the leftmost/rightmost dark pixel (text)
-    const int nRows = B - T + 1;
-    QVector<int>  spanL(nRows, R + 1), spanR(nRows, L - 1);
-    QVector<bool> rowHasText(nRows, false);
-
-    for (int y = T; y <= B; y++) {
-        const QRgb *scan = reinterpret_cast<const QRgb*>(img.constScanLine(y));
-        const int   ri   = y - T;
-        for (int x = L; x <= R; x++) {
-            if (qGray(scan[x]) < 180) {
-                if (!rowHasText[ri]) spanL[ri] = x;
-                spanR[ri] = x;
-                rowHasText[ri] = true;
-            }
-        }
-    }
-
-    // Group text rows into line segments; gaps up to MAX_GAP blank rows are bridged
-    struct Seg { int top, bot, left, right; };
-    QVector<Seg> segs;
-    Seg cur{-1, -1, R + 1, L - 1};
-    int blankRun = 0;
-    const int MAX_GAP = 4;
-
-    for (int i = 0; i < nRows; i++) {
-        if (rowHasText[i]) {
-            if (cur.top < 0)
-                cur = {i, i, spanL[i], spanR[i]};
-            else {
-                cur.bot   = i;
-                cur.left  = qMin(cur.left,  spanL[i]);
-                cur.right = qMax(cur.right, spanR[i]);
-            }
-            blankRun = 0;
-        } else if (cur.top >= 0) {
-            if (++blankRun > MAX_GAP) {
-                segs.append(cur);
-                cur = {-1, -1, R + 1, L - 1};
-                blankRun = 0;
-            }
-        }
-    }
-    if (cur.top >= 0) segs.append(cur);
-
-    for (const Seg &s : segs) {
-        if (s.left <= s.right)
-            m_selBounds << QPolygonF(QRectF(s.left, T + s.top,
-                                             s.right - s.left + 1,
-                                             s.bot   - s.top  + 1));
+    m_selectedText.clear();
+    if (position != m_pressPos) {
+        // Keep the anchor and endpoint in drag order, including backwards drags.
+        const QPdfSelection selection = m_document->getSelection(
+            m_page, pdfPosition(m_pressPos), pdfPosition(position));
+        m_selBounds = selection.bounds();
+        m_selectedText = selection.text();
     }
     update();
 }
 
 void PageWidget::clearSelection()
 {
-    if (!m_selBounds.isEmpty() || !m_dragRect.isNull()) {
-        m_selBounds.clear();
-        m_dragRect = QRect();
-        update();
-    }
+    m_selBounds.clear();
+    m_selectedText.clear();
+    update();
 }
 
 void PageWidget::paintEvent(QPaintEvent *)
@@ -147,52 +115,42 @@ void PageWidget::paintEvent(QPaintEvent *)
     p.fillRect(rect(), Qt::white);
     p.drawPixmap(0, 0, m_pixmap);
 
-    // Translucent rectangle while dragging
-    if (m_selecting && m_dragRect.isValid()) {
-        p.fillRect(m_dragRect, QColor(70, 130, 230, 40));
-        p.setPen(QPen(QColor(70, 130, 230, 120), 1));
-        p.drawRect(m_dragRect.adjusted(0, 0, -1, -1));
-    }
-
-    // Text-line polygon highlights after release
-    if (!m_selBounds.isEmpty()) {
-        p.setPen(Qt::NoPen);
-        p.setBrush(QColor(70, 130, 230, 110));
-        for (const QPolygonF &poly : m_selBounds)
-            p.drawPolygon(poly);
-    }
+    // PDF text boundaries are in points; scale them to the actual rendered size.
+    p.scale(width() / m_pageSize.width(), height() / m_pageSize.height());
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(70, 130, 230, 110));
+    for (const QPolygonF &bounds : m_selBounds)
+        p.drawPolygon(bounds);
 }
 
 void PageWidget::mousePressEvent(QMouseEvent *e)
 {
     if (e->button() == Qt::LeftButton) {
-        m_pressPos  = e->pos();
-        m_dragRect  = QRect();
-        m_selBounds.clear();
-        m_selecting = true;
+        clearSelection();
         emit selectionStarted();
-        update();
+        m_pressPos = e->position();
+        m_selecting = isOverText(m_pressPos);
+        setCursor(m_selecting ? Qt::IBeamCursor : Qt::ArrowCursor);
     }
 }
 
 void PageWidget::mouseMoveEvent(QMouseEvent *e)
 {
     if (m_selecting && (e->buttons() & Qt::LeftButton)) {
-        m_dragRect = QRect(m_pressPos, e->pos()).normalized();
-        update();
+        updateSelection(e->position());
+    } else {
+        setCursor(isOverText(e->position()) ? Qt::IBeamCursor : Qt::ArrowCursor);
     }
 }
 
 void PageWidget::mouseReleaseEvent(QMouseEvent *e)
 {
     if (e->button() == Qt::LeftButton && m_selecting) {
+        updateSelection(e->position());
         m_selecting = false;
-        m_dragRect  = QRect();
-        const QRect sel = QRect(m_pressPos, e->pos()).normalized();
-        if (sel.width() > 3 && sel.height() > 3)
-            emit selectionMade(m_page, sel);
-        else
-            update();
+        setCursor(isOverText(e->position()) ? Qt::IBeamCursor : Qt::ArrowCursor);
+        if (!m_selectedText.trimmed().isEmpty())
+            emit selectionMade(m_selectedText);
     }
 }
 
@@ -349,12 +307,24 @@ void MainWindow::render(int scrollTo)
     if (m_currentFile.isEmpty())
         return;
 
-    QPdfDocument doc;
-    if (doc.load(m_currentFile) != QPdfDocument::Error::None) {
-        statusBar()->showMessage(
-            tr("Error: could not open %1").arg(m_currentFile));
+    // Keep a snapshot in memory so selection never holds the source file open.
+    QFile file(m_currentFile);
+    if (!file.open(QIODevice::ReadOnly)) {
+        statusBar()->showMessage(tr("Error: could not open %1").arg(m_currentFile));
         return;
     }
+    auto buffer = std::make_unique<QBuffer>();
+    buffer->setData(file.readAll());
+    const bool readFailed = file.error() != QFileDevice::NoError;
+    file.close();
+    buffer->open(QIODevice::ReadOnly);
+    auto document = std::make_unique<QPdfDocument>();
+    document->load(buffer.get());
+    if (readFailed || document->status() != QPdfDocument::Status::Ready) {
+        statusBar()->showMessage(tr("Error: could not open %1").arg(m_currentFile));
+        return;
+    }
+    QPdfDocument &doc = *document;
 
     const double scale = BASE_DPI / 72.0;
     const int count = doc.pageCount();
@@ -369,7 +339,9 @@ void MainWindow::render(int scrollTo)
         m_pageImages.append(doc.render(i, sz));
     }
 
-    doc.close(); // File handle released — file may now be renamed or moved
+    // Keep the old snapshot alive until rebuildPageLabels deletes its widgets.
+    m_document.swap(document);
+    m_pdfBuffer.swap(buffer);
 
     rebuildPageLabels();
     setWindowTitle(tr("SlimPDF — %1").arg(QFileInfo(m_currentFile).fileName()));
@@ -388,13 +360,12 @@ void MainWindow::rebuildPageLabels()
 {
     while (m_pagesLayout->count()) {
         QLayoutItem *item = m_pagesLayout->takeAt(0);
-        if (QWidget *w = item->widget())
-            w->deleteLater();
+        delete item->widget();
         delete item;
     }
 
     for (int i = 0; i < m_pageImages.size(); ++i) {
-        auto *pw = new PageWidget(i);
+        auto *pw = new PageWidget(m_document.get(), i);
         pw->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
         connect(pw, &PageWidget::selectionStarted, this, [this, pw] {
             for (int j = 0; j < m_pagesLayout->count(); ++j) {
@@ -593,31 +564,8 @@ void MainWindow::applyFit()
 
 // ── Text selection ────────────────────────────────────────────────────────────
 
-void MainWindow::onSelectionMade(int page, QRect widgetRect)
+void MainWindow::onSelectionMade(const QString &text)
 {
-    if (m_currentFile.isEmpty()) return;
-
-    // Map widget pixels → PDF points (BASE_DPI pixels/inch, 72 points/inch)
-    const double pxPerPt = m_zoom * BASE_DPI / 72.0;
-    const QRectF pdfRect(widgetRect.left()   / pxPerPt,
-                         widgetRect.top()    / pxPerPt,
-                         widgetRect.width()  / pxPerPt,
-                         widgetRect.height() / pxPerPt);
-
-    QPdfDocument doc;
-    if (doc.load(m_currentFile) != QPdfDocument::Error::None) return;
-    const QPdfSelection sel = doc.getSelection(page, pdfRect.topLeft(), pdfRect.bottomRight());
-    doc.close();
-
-    // Show word-processor-style per-line highlights derived from the page image
-    if (auto *pw = qobject_cast<PageWidget*>(m_pagesLayout->itemAt(page)->widget()))
-        pw->highlightSelection(widgetRect);
-
-    const QString text = sel.text().trimmed();
-    if (text.isEmpty()) {
-        statusBar()->showMessage(tr("No text found in selection"), 2000);
-        return;
-    }
     QApplication::clipboard()->setText(text);
     statusBar()->showMessage(
         tr("Copied %1 character%2").arg(text.length()).arg(text.length() == 1 ? "" : "s"),

@@ -57,3 +57,16 @@ install(TARGETS slimpdf
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    set(TEST_SOURCES ${SOURCES})
+    list(REMOVE_ITEM TEST_SOURCES src/main.cpp)
+    qt_add_executable(text_selection_test tests/text_selection_test.cpp ${TEST_SOURCES})
+    target_include_directories(text_selection_test PRIVATE src)
+    target_link_libraries(text_selection_test PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Pdf Qt6::Svg Qt6::Test)
+    add_test(NAME text_selection COMMAND text_selection_test)
+    set_tests_properties(text_selection PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
