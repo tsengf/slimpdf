@@ -86,6 +86,12 @@ if(BUILD_TESTING)
     target_include_directories(text_selection_test PRIVATE src)
     target_link_libraries(text_selection_test PRIVATE
         Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Pdf Qt6::Svg Qt6::Test)
-    add_test(NAME text_selection COMMAND text_selection_test)
+    set_target_properties(text_selection_test PROPERTIES WIN32_EXECUTABLE OFF)
+    if(WIN32)
+        add_test(NAME text_selection COMMAND text_selection_test
+            -o "${CMAKE_CURRENT_BINARY_DIR}/text_selection_results.txt,txt")
+    else()
+        add_test(NAME text_selection COMMAND text_selection_test)
+    endif()
     set_tests_properties(text_selection PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

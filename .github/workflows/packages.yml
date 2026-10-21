@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           if ! ctest --test-dir build -C Release --output-on-failure; then
-            python -c "from pathlib import Path; text = Path('build/Testing/Temporary/LastTest.log').read_text(errors='replace'); print('::error title=Qt Test output::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))"
+            python -c "from pathlib import Path; paths = [Path('build/Testing/Temporary/LastTest.log'), Path('build/text_selection_results.txt')]; text = '\n'.join(p.read_text(errors='replace') for p in paths if p.exists()); print('::error title=Qt Test output::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))"
             exit 1
           fi
       - name: Package
