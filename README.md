@@ -2,6 +2,8 @@
 
 SlimPDF is a small desktop PDF reader built with C++17 and Qt 6. It combines continuous page scrolling, live text selection, and automatic reloads so you can keep reading while a PDF changes on disk.
 
+![SlimPDF in dark mode with a sample PDF, highlighted search results, and the Find dialog](docs/images/slimpdf-dark.png)
+
 ## Features
 
 - **Continuous reading.** Scroll through all pages in one window, with the page number and zoom level in the status bar.
