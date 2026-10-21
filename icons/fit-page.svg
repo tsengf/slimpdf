@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+     stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="7" y="5" width="10" height="14" rx="1"/>
+  <!-- top-left corner arrow -->
+  <path d="M7 5L3 2M3 6L3 2L7 2"/>
+  <!-- top-right corner arrow -->
+  <path d="M17 5L21 2M21 6L21 2L17 2"/>
+  <!-- bottom-left corner arrow -->
+  <path d="M7 19L3 22M3 18L3 22L7 22"/>
+  <!-- bottom-right corner arrow -->
+  <path d="M17 19L21 22M21 18L21 22L17 22"/>
+</svg>
