@@ -76,7 +76,7 @@ else()
     install(FILES LICENSE README.md DESTINATION .)
 endif()
 
-option(SLIMPDF_BUILD_PACKAGES "Enable native installation packages" OFF)
+option(SLIMPDF_BUILD_PACKAGES "Enable native installation packages" ON)
 if(SLIMPDF_BUILD_PACKAGES)
     include(cmake/Packaging.cmake)
 endif()

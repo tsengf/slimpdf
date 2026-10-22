@@ -21,12 +21,14 @@ jobs:
             os: macos-15
             qt-arch: clang_64
             cmake-args: '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
+            package-target: package
             artifact: macos-universal
             pattern: '*.dmg'
           - name: Windows x64
             os: windows-2022
             qt-arch: win64_msvc2022_64
             cmake-args: '-Ax64'
+            package-target: PACKAGE
             artifact: windows-x64
             pattern: '*.exe'
     runs-on: ${{ matrix.os }}
@@ -51,7 +53,7 @@ jobs:
         shell: bash
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          -DSLIMPDF_BUILD_PACKAGES=ON '${{ matrix.cmake-args }}'
+          '${{ matrix.cmake-args }}'
       - name: Build
         run: cmake --build build --config Release --parallel
       - name: Deploy Windows test runtime
@@ -68,13 +70,12 @@ jobs:
             exit 1
           fi
       - name: Package
-        working-directory: build
-        run: cpack -C Release --config CPackConfig.cmake
+        run: cmake --build build --config Release --target ${{ matrix.package-target }} --parallel
       - name: Verify macOS disk image
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          image=$(find build/packages -maxdepth 1 -name '*.dmg' -print -quit)
+          image=$(find build -maxdepth 1 -name '*.dmg' -print -quit)
           hdiutil verify "$image"
           mkdir -p build/package-mount
           hdiutil attach -readonly -nobrowse -mountpoint build/package-mount "$image"
@@ -85,7 +86,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $installer = Get-ChildItem build/packages/*.exe | Select-Object -First 1
+          $installer = Get-ChildItem build/*.exe | Select-Object -First 1
           $destination = Join-Path $env:RUNNER_TEMP 'SlimPDF-install'
           $install = Start-Process $installer.FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
@@ -104,7 +105,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: slimpdf-${{ matrix.artifact }}
-          path: build/packages/${{ matrix.pattern }}
+          path: build/${{ matrix.pattern }}
           if-no-files-found: error
           retention-days: 30
 
@@ -118,7 +119,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build g++ qt6-base-dev qt6-pdf-dev qt6-svg-dev dpkg-dev desktop-file-utils
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLIMPDF_BUILD_PACKAGES=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=DEB
       - name: Build and test
         run: |
           cmake --build build --parallel 2
@@ -127,17 +128,17 @@ jobs:
       - name: Package and inspect
         working-directory: build
         run: |
-          cpack -G DEB --config CPackConfig.cmake
-          dpkg-deb --info packages/*.deb
-          dpkg-deb --contents packages/*.deb
+          cmake --build . --target package --parallel 2
+          dpkg-deb --info *.deb
+          dpkg-deb --contents *.deb
       - name: Install and smoke test
         run: |
-          sudo apt-get install -y ./build/packages/*.deb
+          sudo apt-get install -y ./build/*.deb
           QT_QPA_PLATFORM=offscreen timeout 5s /usr/bin/slimpdf > build/installed.log 2>&1 || test "$?" -eq 124
       - uses: actions/upload-artifact@v4
         with:
           name: slimpdf-linux-deb-x64
-          path: build/packages/*.deb
+          path: build/*.deb
           if-no-files-found: error
           retention-days: 30
 
@@ -150,7 +151,7 @@ jobs:
         run: dnf install -y git cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtpdf-devel qt6-qtsvg-devel rpm-build desktop-file-utils findutils
       - uses: actions/checkout@v4
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSLIMPDF_BUILD_PACKAGES=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=RPM
       - name: Build and test
         run: |
           cmake --build build --parallel 2
@@ -159,16 +160,16 @@ jobs:
       - name: Package and inspect
         working-directory: build
         run: |
-          cpack -G RPM --config CPackConfig.cmake
-          rpm -qip packages/*.rpm
-          rpm -qlp packages/*.rpm
+          cmake --build . --target package --parallel 2
+          rpm -qip *.rpm
+          rpm -qlp *.rpm
       - name: Install and smoke test
         run: |
-          dnf install -y ./build/packages/*.rpm
+          dnf install -y ./build/*.rpm
           QT_QPA_PLATFORM=offscreen timeout 5s /usr/bin/slimpdf > build/installed.log 2>&1 || test "$?" -eq 124
       - uses: actions/upload-artifact@v4
         with:
           name: slimpdf-linux-rpm-x64
-          path: build/packages/*.rpm
+          path: build/*.rpm
           if-no-files-found: error
           retention-days: 30

@@ -76,18 +76,41 @@ macOS packages are ad-hoc signed, without Apple notarization. Windows installers
 
 ### Build packages locally
 
-Build on the platform you want to package for. macOS and Windows packaging require Qt 6.7 or later and its deployment tools. Windows also requires NSIS 3.03 or later on `PATH`. Linux `.deb` builds require `dpkg-dev`; `.rpm` builds require `rpm-build`.
+SlimPDF uses CMake's `package` target, following the same workflow as SpeedCrunch. Configure once, then build the package on its target platform:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSLIMPDF_BUILD_PACKAGES=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ctest --test-dir build -C Release --output-on-failure
-cpack --config build/CPackConfig.cmake -C Release
+cmake --build build --config Release --target package --parallel
 ```
 
-Add `-DCMAKE_PREFIX_PATH=/path/to/qt` if needed. On Linux, choose the native package format by adding `-G DEB` or `-G RPM` to the `cpack` command. Generated packages are written to `build/packages/`, with the version and architecture in their names.
+The package target builds the application, stages its installation, bundles Qt on macOS and Windows, and creates the installer. A normal build does not generate an installer. With the Visual Studio generator, use the uppercase target `PACKAGE`.
 
-On macOS, the package contains the architecture built locally. With a universal Qt installation, add `'-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'` when configuring to include both architectures.
+On macOS with MacPorts Qt:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/opt/local/libexec/qt6
+cmake --build build --config Release --target package --parallel
+```
+
+The DMG is written directly to the build directory, for example `build/SlimPDF-1.0.0-macos-arm64.dmg`. It contains `SlimPDF.app` and an Applications shortcut. The deployment step uses `macdeployqt` from the selected Qt installation, includes the Cocoa and SVG plugins, excludes unused SQL drivers, and verifies the app's ad hoc signature before packaging. It does not notarize the application.
+
+With a universal Qt installation, add `'-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'` when configuring. The filename then uses `macos-universal`.
+
+To create a portable ZIP on macOS or Windows, select the generator in a separate build directory:
+
+```bash
+cmake -S . -B build-zip -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=ZIP
+cmake --build build-zip --config Release --target package --parallel
+```
+
+Add `-DCMAKE_PREFIX_PATH=/path/to/qt` if needed. The ZIP includes the deployed Qt runtime, just like the installer. Windows defaults to an NSIS installer, such as `SlimPDF-1.0.0-windows-x64.exe`, and requires Qt 6.7 or later plus NSIS 3.03 or later on `PATH` for that format. ZIP packaging does not require NSIS.
+
+On Linux, configure with `-DCPACK_GENERATOR=DEB` for Debian/Ubuntu or `-DCPACK_GENERATOR=RPM` for Fedora. The respective build tools are `dpkg-dev` and `rpm-build`. Without a generator selection, the package target creates both formats and needs both tools. Packages are written directly to the build directory and depend on the distribution's Qt runtime packages.
+
+Package generation is enabled by default. Set `-DSLIMPDF_BUILD_PACKAGES=OFF` to disable deployment and the package target, for example when using an older Qt installation on Windows.
 
 The workflow runs on pushes to `main`, version tags, pull requests, and manual dispatch. It builds and tests each platform, then uploads packages as workflow artifacts for 30 days. It does not publish GitHub Releases automatically.
 
