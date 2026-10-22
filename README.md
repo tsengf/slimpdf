@@ -1,30 +1,57 @@
 # SlimPDF
 
-SlimPDF is a small desktop PDF reader built with C++17 and Qt 6. It combines continuous page scrolling, live text selection, and automatic reloads so you can keep reading while a PDF changes on disk.
+A small desktop PDF reader for macOS, Windows and Linux. Read continuously, select and search text, and keep the document open while its file changes on disk.
+
+[Installation](#installation) · [Usage](#usage) · [Build from source](#build-from-source) · [Build packages](#build-packages) · [Tests](#tests)
 
 ![SlimPDF in dark mode with a sample PDF, highlighted search results, and the Find dialog](docs/images/slimpdf-dark.png)
 
 ## Features
 
-- **Continuous reading.** Scroll through all pages in one window, with the page number and zoom level in the status bar.
-- **Page-aware status.** When at least 90% of a page is visible, the status bar shows that page alone, such as `Page 3 of 10`. Otherwise, it shows the visible range, such as `Pages 3–4 of 10`. If only one page is visible, it shows a single page number.
-- **Live text selection.** The pointer becomes an I-beam over selectable text. Click and drag in either direction to highlight text across lines within a page. Highlights follow the text as you drag, and stay visible when you release the mouse. Use **Edit → Copy** or the copy shortcut to copy the selected text.
-- **Find in document.** Search text across all pages with **Edit → Find…**. Matching text is highlighted, the current result has a distinct color, and a compact, modeless Find dialog at the upper right shows your position in the results without reducing the reading area. Use Enter/Shift+Enter or Find Next/Previous to navigate; navigation wraps at either end. Escape closes Find and clears its highlights. Searches are case-insensitive and refresh when the PDF reloads.
-- **Zoom and fit controls.** Fit Width is active by default. Zoom from 25% to 400%, reset to 100%, or fit the document to the window's width, height, or full page. The active fit button stays highlighted and the fit is recalculated when you resize the window. Manual zoom turns off the fit mode.
-- **Automatic reloads.** Changes to the open PDF trigger a reload after a short delay, preserving the vertical scroll position.
-- **Files stay available.** SlimPDF reads the PDF into memory and closes the source file before rendering. You can rename, move, or replace the file while its current contents remain visible. Automatic reloads watch the original path; reopen the PDF if you move or rename it.
-- **Recent files.** Recently opened files persist across sessions under **File → Open Recent**, with an option to clear the list. On macOS, the list follows the system's recent-document limit, including zero, and is also available from the Dock icon's **Open Recent** menu. Linux and Windows retain up to ten files.
-- **Flexible opening.** Open a PDF from the File menu, drop it onto the window, or pass its path on the command line.
+- **Continuous reading.** Scroll through pages with a page-aware status bar. A page occupying at least 90% of the viewport is shown alone; otherwise the status shows the visible page range.
+- **Text selection.** Drag across lines of text and copy the selection. Selection remains visible after releasing the mouse.
+- **Find in document.** Search text with a modeless Find dialog and highlighted matches. Searches ignore case, refresh after reloads and wrap at the document's ends.
+- **Zoom and fit.** Zoom from 25% to 400%, reset to 100%, or fit the page's width, height or full area. Fit Width is active by default; fit modes follow window resizing.
+- **Automatic reloads.** Refresh changed PDFs while preserving the scroll position. The file is loaded into memory and closed, so it can be renamed or replaced while open.
+- **Recent files.** Reopen documents from **File → Open Recent**. macOS also offers recent documents from the Dock menu.
+- **Flexible opening.** Use the File menu, drop a PDF onto the window, or pass its path on the command line.
 
 Text selection and search use the PDF's existing text layer. Image-only scans need a text layer before their text can be selected or searched.
 
-## Using SlimPDF
+## Installation
 
-Launching SlimPDF without a file opens an empty reader window. Choose **File → Open…**, drag a PDF onto the window, or choose a recent file to start reading. Opening another PDF replaces the document in that window.
+Download an installer from a successful run of the [**Installation packages** workflow](https://github.com/tsengf/slimpdf/actions/workflows/packages.yml). Extract the downloaded GitHub Actions artifact to access the package.
 
-Use the toolbar or **View** menu for zoom and fit controls. Click an active fit button again to turn off automatic fitting while keeping the current zoom.
+| Platform | Artifact | Package | Install |
+| --- | --- | --- | --- |
+| macOS, Apple Silicon / Intel | `slimpdf-macos-universal` | `.dmg` | Open the image and drag **SlimPDF.app** to Applications. |
+| Windows x64 | `slimpdf-windows-x64` | `.exe` | Run the installer; it adds a Start menu shortcut and an uninstaller. |
+| Ubuntu 24.04 x64 | `slimpdf-linux-deb-x64` | `.deb` | Run `sudo apt install ./slimpdf_*.deb`. |
+| Fedora 43 x64 | `slimpdf-linux-rpm-x64` | `.rpm` | Run `sudo dnf install ./slimpdf-*.rpm`. |
 
-Choose **Help → About SlimPDF…** to see the version and repository link. On macOS, **About SlimPDF…** appears in the application menu.
+macOS and Windows packages include the Qt runtime. Linux packages use the distribution's Qt packages; the package manager installs the required dependencies. Build Linux packages on the distribution and release they target.
+
+macOS packages are ad-hoc signed without Apple notarization. Windows installers are unsigned. The operating system may show an unverified-app warning.
+
+For a portable installation on macOS or Windows, [build a ZIP](#portable-zips) and extract the complete package into a permanent folder.
+
+## Usage
+
+### Quick start
+
+1. Open SlimPDF and choose **File → Open…**, drop a PDF onto the window, or choose a recent file.
+2. Scroll through the document. Drag to select text and use **Edit → Copy** or the copy shortcut.
+3. Choose **Edit → Find…** to search. Use Enter/Shift+Enter or Find Next/Previous to move between matches; Escape closes Find and clears its highlights.
+
+Launching without a file opens an empty reader window. Opening another PDF replaces the document in that window.
+
+### Reading and document updates
+
+Use the toolbar or **View** menu to zoom or fit the page. Clicking an active fit button turns that mode off while keeping the current zoom. Manual zoom also turns off the fit mode.
+
+Automatic reload watches the original file path. Renaming or moving a file keeps its loaded contents available, but reopen it at the new path to resume automatic updates.
+
+On macOS, recent-file history follows the system's recent-document limit, including zero. Windows and Linux retain up to ten files. Choose **Help → About SlimPDF…** for the version and repository link; on macOS, use **About SlimPDF…** in the application menu.
 
 ### Keyboard and mouse controls
 
@@ -44,10 +71,9 @@ Choose **Help → About SlimPDF…** to see the version and repository link. On 
 
 ### Launch from the command line
 
-On macOS:
+On macOS, open a PDF using a source build:
 
 ```bash
-./build/SlimPDF.app/Contents/MacOS/SlimPDF
 ./build/SlimPDF.app/Contents/MacOS/SlimPDF document.pdf
 ```
 
@@ -57,118 +83,148 @@ On Linux:
 ./build/slimpdf document.pdf
 ```
 
-On Windows, run `slimpdf.exe` from the build output directory. With a multi-configuration generator such as Visual Studio, it is typically under `build/Release/`.
+Omit the file argument to open an empty window. On Windows, the executable is `slimpdf.exe`; source builds using Visual Studio normally place it under `build/Release/`.
 
-## Installation packages
+## Build from source
 
-Native packages are built by the **Installation packages** GitHub Actions workflow. Once the workflow has run, download its artifacts from the repository's [Actions page](https://github.com/tsengf/slimpdf/actions/workflows/packages.yml).
+### Requirements
 
-| Platform | Package | Installation |
-| --- | --- | --- |
-| macOS | `.dmg` | Open the disk image and drag `SlimPDF.app` to Applications. CI builds a universal app for Apple silicon and Intel Macs. |
-| Windows x64 | `.exe` | Run the installer. It adds a Start menu shortcut and an uninstaller. |
-| Ubuntu 24.04 x64 | `.deb` | Run `sudo apt install ./slimpdf_*.deb`. |
-| Fedora 43 x64 | `.rpm` | Run `sudo dnf install ./slimpdf-*.rpm`. |
+- Git and CMake 3.19 or later.
+- A C++17 compiler.
+- Qt 6.4 or later with Core, Gui, Widgets, Pdf and Svg.
+- Qt Test for the test suite, enabled by default.
+- On macOS, Xcode command-line tools with Objective-C++ and the AppKit SDK.
+- On Windows, a compiler and Qt installation with matching architecture and toolchain, such as an MSVC Qt build for Visual Studio.
 
-macOS and Windows packages include the Qt runtime. Linux packages use the distribution's Qt packages; the package manager installs the required dependencies. Linux packages should be built on the distribution and release they target.
+### Configure and build
 
-macOS packages are ad-hoc signed, without Apple notarization. Windows installers are unsigned. Public distribution with a verified publisher requires the appropriate signing certificates.
+Clone the repository and enter its directory:
 
-### Build packages locally
+```bash
+git clone https://github.com/tsengf/slimpdf.git
+cd slimpdf
+```
 
-SlimPDF uses CMake's `package` target, following the same workflow as SpeedCrunch. Configure once, then build the package on its target platform:
+After installing Qt, configure and build:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
-ctest --test-dir build -C Release --output-on-failure
-cmake --build build --config Release --target package --parallel
 ```
 
-The package target builds the application, stages its installation, bundles Qt on macOS and Windows, and creates the installer. A normal build does not generate an installer. With the Visual Studio generator, use the uppercase target `PACKAGE`.
+If CMake cannot find Qt, add `-DCMAKE_PREFIX_PATH=/path/to/qt`. Use a Qt installation containing all required modules, including Pdf and Svg.
 
-On macOS with MacPorts Qt:
+The application is `build/SlimPDF.app` on macOS, `build/slimpdf` on Linux or `slimpdf.exe` on Windows. Multi-configuration generators may add a directory such as `Release`.
+
+### macOS dependencies
+
+For a MacPorts Qt installation, configure with its Qt prefix:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=/opt/local/libexec/qt6
+cmake --build build --config Release --parallel
+```
+
+Use separate build directories when switching Qt installations so cached dependency paths do not carry over.
+
+### Windows dependencies
+
+Choose a Qt installation matching your compiler and target architecture. For a Visual Studio x64 build, run in PowerShell and replace the example Qt path:
+
+```powershell
+cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH=C:/Qt/6.8.3/msvc2022_64
+cmake --build build --config Release --parallel
+```
+
+Windows packaging is enabled by default and requires Qt 6.7 or later for runtime deployment. For a development build with an older supported Qt version, disable packaging as shown below.
+
+### Build options
+
+| Option | Effect | Default |
+| --- | --- | --- |
+| `BUILD_TESTING` | Build the test suite; turn off to omit the Qt Test dependency. | `ON` |
+| `SLIMPDF_BUILD_PACKAGES` | Enable runtime deployment and the CMake package target. | `ON` |
+
+Add `-DBUILD_TESTING=OFF` to build without tests. Add `-DSLIMPDF_BUILD_PACKAGES=OFF` to disable packaging and deployment, for example when using Qt older than 6.7 on Windows.
+
+## Build packages
+
+Use the configured build for the platform and architecture you want to distribute. Keep the Qt prefix and other dependency options used for that build. CPack stages the installation, deploys Qt on macOS and Windows, and creates the selected package format.
+
+### Native installers
+
+After building and [running the tests](#tests), create an installer:
+
+```bash
 cmake --build build --config Release --target package --parallel
 ```
 
-The DMG is written directly to the build directory, for example `build/SlimPDF-1.0.0-macos-arm64.dmg`. It contains `SlimPDF.app` and an Applications shortcut. The deployment step uses `macdeployqt` from the selected Qt installation, includes the Cocoa and SVG plugins, excludes unused SQL drivers, and verifies the app's ad hoc signature before packaging. It does not notarize the application.
+With the Visual Studio generator, use uppercase `PACKAGE`:
 
-With a universal Qt installation, add `'-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'` when configuring. The filename then uses `macos-universal`.
+```powershell
+cmake --build build --config Release --target PACKAGE --parallel
+```
 
-To create a portable ZIP on macOS or Windows, select the generator in a separate build directory:
+| Platform | Output example | Packaging requirements |
+| --- | --- | --- |
+| macOS | `build/SlimPDF-1.0.0-macos-arm64.dmg` | Qt deployment tools from the selected Qt installation. |
+| Windows x64 | `build/SlimPDF-1.0.0-windows-x64.exe` | Qt 6.7 or later and NSIS 3.03 or later on `PATH`. |
+| Debian / Ubuntu | `build/slimpdf_*.deb` | `dpkg-dev` on the target distribution. |
+| Fedora | `build/slimpdf-*.rpm` | `rpm-build` on the target distribution. |
+
+The package target builds the app, stages its installation and creates the installer. A normal build does not create a package. Files are written directly to the selected build directory.
+
+macOS DMGs contain the app and an Applications shortcut. Deployment uses `macdeployqt` from the selected Qt installation, includes the Cocoa and SVG plugins, excludes unused SQL drivers, and verifies the app's ad-hoc signature before packaging. It does not notarize the app.
+
+For a universal macOS build, use a universal Qt installation and configure with `'-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'`. The filename then includes `macos-universal`.
+
+On Linux, configure with `-DCPACK_GENERATOR=DEB` or `-DCPACK_GENERATOR=RPM` to choose one native format. Without a selection, packaging creates both and requires both sets of tools. Linux packages depend on the distribution's Qt runtime packages.
+
+### Portable ZIPs
+
+Choose ZIP output in a separate build directory, including your Qt prefix:
 
 ```bash
 cmake -S . -B build-zip -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=ZIP
 cmake --build build-zip --config Release --target package --parallel
 ```
 
-Add `-DCMAKE_PREFIX_PATH=/path/to/qt` if needed. The ZIP includes the deployed Qt runtime, just like the installer. Windows defaults to an NSIS installer, such as `SlimPDF-1.0.0-windows-x64.exe`, and requires Qt 6.7 or later plus NSIS 3.03 or later on `PATH` for that format. ZIP packaging does not require NSIS.
-
-On Linux, configure with `-DCPACK_GENERATOR=DEB` for Debian/Ubuntu or `-DCPACK_GENERATOR=RPM` for Fedora. The respective build tools are `dpkg-dev` and `rpm-build`. Without a generator selection, the package target creates both formats and needs both tools. Packages are written directly to the build directory and depend on the distribution's Qt runtime packages.
-
-Package generation is enabled by default. Set `-DSLIMPDF_BUILD_PACKAGES=OFF` to disable deployment and the package target, for example when using an older Qt installation on Windows.
-
-The workflow runs on pushes to `main`, version tags, pull requests, and manual dispatch. It builds and tests each platform, then uploads packages as workflow artifacts for 30 days. It does not publish GitHub Releases automatically.
-
-## Build from source
-
-Requirements:
-
-- A C++17 compiler.
-- CMake 3.19 or later.
-- Qt 6.4 or later with Core, Gui, Widgets, Pdf, and Svg.
-- Qt Test for the test suite, which is enabled by default.
-- On macOS, an Objective-C++ compiler and the AppKit SDK, provided by Xcode's developer tools.
-
-From the project directory:
+Use uppercase `PACKAGE` with Visual Studio. macOS and Windows ZIPs contain the deployed Qt runtime and do not require NSIS. To create a one-off ZIP from an existing build without changing its configured generator:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
+cpack --config build/CPackConfig.cmake -C Release -G ZIP
 ```
 
-If CMake cannot find Qt, pass its installation prefix with `-DCMAKE_PREFIX_PATH=/path/to/qt`.
+### CI
 
-For a macOS Qt installation managed by MacPorts:
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH=/opt/local/libexec/qt6
-cmake --build build --config Release --parallel
-```
-
-The application is built as `build/SlimPDF.app` on macOS, `build/slimpdf` on Linux, or `slimpdf.exe` in the Windows build output directory. Multi-configuration generators may add a configuration directory such as `Release`.
-
-To build the application without the test suite or Qt Test dependency, add `-DBUILD_TESTING=OFF` to the CMake configuration command.
+The [Installation packages workflow](https://github.com/tsengf/slimpdf/actions/workflows/packages.yml) uses the same package target. It runs on pushes to `main`, version tags, pull requests and manual dispatch, builds/tests/packages each platform, and uploads artifacts for 30 days. It does not publish GitHub Releases automatically.
 
 ## Tests
 
-After building, run:
+After building:
 
 ```bash
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The Qt Test suite renders widgets into images. It runs offscreen on macOS and Linux and uses the native Windows platform for access to installed fonts. It checks text cursor behavior, live highlights, forward and backward selection across lines, horizontal selection, and clearing selections at three zoom levels. It also checks that selection leaves the clipboard unchanged, that the Copy command copies only the current selection, and that Find supports page-spanning results, navigation, query changes, highlights, zoom, closing, and document replacement.
+The Qt Test suite renders widgets into images. It runs offscreen on macOS and Linux, and uses the native Windows platform for access to installed fonts. Coverage includes text cursor behavior, live highlights, selection across lines at multiple zoom levels, clipboard preservation, Copy, SVG toolbar rendering, and Find navigation across pages, query changes, reloads and closing the Find dialog.
 
 ## Source layout
 
-| Path | Contents |
+| Path | Purpose |
 | --- | --- |
-| `src/main.cpp` | Application startup and command-line file opening |
-| `src/main_window.h`, `src/main_window.cpp` | Reader window, page rendering, selection, zoom, file watching, and recent files |
-| `src/macos_dock.h`, `src/macos_dock.mm` | macOS Dock recent-file menu |
-| `icons/` | SVG toolbar icons embedded in the application |
-| `tests/text_selection_test.cpp` | Text selection, Copy, and Find regression tests |
-| `CMakeLists.txt` | Application and test build configuration |
-| `cmake/Packaging.cmake` | Native installer configuration and Qt deployment |
-| `packaging/linux/slimpdf.desktop` | Linux application menu entry and PDF MIME type |
-| `.github/workflows/packages.yml` | Native package builds for macOS, Windows, Ubuntu, and Fedora |
+| `src/main.cpp` | Application startup and command-line file opening. |
+| `src/main_window.h`, `src/main_window.cpp` | Rendering, selection, search, zoom, file watching and recent files. |
+| `src/macos_dock.h`, `src/macos_dock.mm` | macOS Dock recent-file menu. |
+| `src/macos_about.h`, `src/macos_about.mm` | Native macOS About panel. |
+| `icons/` | SVG toolbar icons embedded in the app. |
+| `tests/text_selection_test.cpp` | Widget and text-interaction regression tests. |
+| `CMakeLists.txt` | Application and test build configuration. |
+| `cmake/Packaging.cmake`, `cmake/DeployMacOS.cmake` | Installer configuration and macOS deployment. |
+| `packaging/linux/slimpdf.desktop` | Linux application menu entry and PDF MIME type. |
+| `.github/workflows/packages.yml` | Native builds, tests and installation packages. |
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE).
