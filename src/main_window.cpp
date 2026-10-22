@@ -2,6 +2,7 @@
 
 #ifdef Q_OS_MACOS
 #include "macos_dock.h"
+#include "macos_about.h"
 #endif
 
 #include <QActionGroup>
@@ -329,13 +330,22 @@ void MainWindow::initUi()
     aboutAct->setMenuRole(QAction::AboutRole);
     helpMenu->addAction(aboutAct);
     connect(aboutAct, &QAction::triggered, this, [this] {
+        const QString description = tr("A lightweight PDF reader with continuous scrolling, "
+                                       "text selection, and automatic reloads.");
+        const QString credits = tr("Built with C++17 and Qt 6. PDF rendering powered by Qt PDF.");
+        const QString license = tr("MIT License");
+        const QString website = QStringLiteral("https://github.com/tsengf/slimpdf");
+        const QString version = QCoreApplication::applicationVersion();
+#ifdef Q_OS_MACOS
+        showMacOSAboutPanel(version, description, credits, license, website);
+#else
         QMessageBox::about(this, tr("About SlimPDF"),
-            tr("<h3>SlimPDF %1</h3>"
-               "<p>A lightweight PDF reader with continuous scrolling, "
-               "text selection, and automatic reloads.</p>"
-               "<p><a href=\"https://github.com/tsengf/slimpdf\">Project on GitHub</a></p>"
-               "<p>MIT License</p>")
-                .arg(QCoreApplication::applicationVersion().toHtmlEscaped()));
+            tr("<h3>SlimPDF</h3><p>Version %1</p>"
+               "<p>%2</p><p>%3</p><p>%4</p>"
+               "<p><a href=\"%5\">%5</a></p>")
+                .arg(version.toHtmlEscaped(), description.toHtmlEscaped(),
+                     credits.toHtmlEscaped(), license.toHtmlEscaped(), website));
+#endif
     });
 
     // Toolbar

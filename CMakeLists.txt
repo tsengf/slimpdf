@@ -19,8 +19,9 @@ set(SOURCES
     src/main_window.cpp
 )
 if(APPLE)
-    list(APPEND SOURCES src/macos_dock.h src/macos_dock.mm)
-    set_source_files_properties(src/macos_dock.mm PROPERTIES
+    list(APPEND SOURCES src/macos_dock.h src/macos_dock.mm
+                        src/macos_about.h src/macos_about.mm)
+    set_source_files_properties(src/macos_dock.mm src/macos_about.mm PROPERTIES
         COMPILE_FLAGS "-fobjc-arc")
 endif()
 
