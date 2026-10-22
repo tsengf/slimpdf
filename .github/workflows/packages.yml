@@ -79,7 +79,7 @@ jobs:
           mkdir -p build/package-mount
           hdiutil attach -readonly -nobrowse -mountpoint build/package-mount "$image"
           trap 'hdiutil detach build/package-mount' EXIT
-          codesign --verify --deep --strict build/package-mount/slimpdf.app 2> build/signature-check.log || { python -c "from pathlib import Path; print('::error title=Signature verification::' + Path('build/signature-check.log').read_text().replace('\n', '%0A'))"; exit 1; }
+          codesign --verify --deep --strict build/package-mount/SlimPDF.app 2> build/signature-check.log || { python -c "from pathlib import Path; print('::error title=Signature verification::' + Path('build/signature-check.log').read_text().replace('\n', '%0A'))"; exit 1; }
           test -L build/package-mount/Applications
       - name: Install and smoke test Windows package
         if: runner.os == 'Windows'

@@ -47,8 +47,8 @@ Choose **Help → About SlimPDF…** to see the version and repository link. On 
 On macOS:
 
 ```bash
-./build/slimpdf.app/Contents/MacOS/slimpdf
-./build/slimpdf.app/Contents/MacOS/slimpdf document.pdf
+./build/SlimPDF.app/Contents/MacOS/SlimPDF
+./build/SlimPDF.app/Contents/MacOS/SlimPDF document.pdf
 ```
 
 On Linux:
@@ -65,7 +65,7 @@ Native packages are built by the **Installation packages** GitHub Actions workfl
 
 | Platform | Package | Installation |
 | --- | --- | --- |
-| macOS | `.dmg` | Open the disk image and drag `slimpdf.app` to Applications. CI builds a universal app for Apple silicon and Intel Macs. |
+| macOS | `.dmg` | Open the disk image and drag `SlimPDF.app` to Applications. CI builds a universal app for Apple silicon and Intel Macs. |
 | Windows x64 | `.exe` | Run the installer. It adds a Start menu shortcut and an uninstaller. |
 | Ubuntu 24.04 x64 | `.deb` | Run `sudo apt install ./slimpdf_*.deb`. |
 | Fedora 43 x64 | `.rpm` | Run `sudo dnf install ./slimpdf-*.rpm`. |
@@ -118,7 +118,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --config Release --parallel
 ```
 
-The application is built as `build/slimpdf.app` on macOS, `build/slimpdf` on Linux, or `slimpdf.exe` in the Windows build output directory. Multi-configuration generators may add a configuration directory such as `Release`.
+The application is built as `build/SlimPDF.app` on macOS, `build/slimpdf` on Linux, or `slimpdf.exe` in the Windows build output directory. Multi-configuration generators may add a configuration directory such as `Release`.
 
 To build the application without the test suite or Qt Test dependency, add `-DBUILD_TESTING=OFF` to the CMake configuration command.
 

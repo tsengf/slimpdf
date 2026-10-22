@@ -55,6 +55,10 @@ set_target_properties(slimpdf PROPERTIES
         ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
 )
 
+if(APPLE)
+    set_target_properties(slimpdf PROPERTIES OUTPUT_NAME "SlimPDF")
+endif()
+
 install(TARGETS slimpdf
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -66,7 +70,7 @@ if(UNIX AND NOT APPLE)
     install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
     install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/slimpdf)
 elseif(APPLE)
-    install(FILES LICENSE DESTINATION slimpdf.app/Contents/Resources)
+    install(FILES LICENSE DESTINATION SlimPDF.app/Contents/Resources)
 else()
     install(FILES LICENSE README.md DESTINATION .)
 endif()
